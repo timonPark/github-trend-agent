@@ -62,6 +62,16 @@ export default function ClientHomePage() {
   const [readmeLoading, setReadmeLoading] = useState(false);
   const [readmeContent, setReadmeContent] = useState<string>('');
 
+  // AI Agent Settings State (#7)
+  const [aiProvider, setAiProvider] = useState<string>('none');
+  const [aiModel, setAiModel] = useState<string>('default');
+  const [aiApiKey, setAiApiKey] = useState<string>('');
+  const [detectedClis, setDetectedClis] = useState<Array<{ id: string; name: string; installed: boolean; version?: string }>>([]);
+  const [aiSaving, setAiSaving] = useState(false);
+  const [aiTesting, setAiTesting] = useState(false);
+  const [aiMessage, setAiMessage] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+
   // Load auth status and settings
   const loadInitialData = async () => {
     setLoading(true);
@@ -90,6 +100,19 @@ export default function ClientHomePage() {
 
       // 3. Fetch Initial Trending Snapshots
       loadTrendingData();
+
+      // 4. Fetch AI Configuration & Detected CLIs (#7)
+      try {
+        const aiRes = await fetch('/api/ai/status');
+        const aiData = await aiRes.json();
+        if (aiData.config) {
+          setAiProvider(aiData.config.provider || 'none');
+          setAiModel(aiData.config.model || 'default');
+        }
+        if (aiData.detectedClis) {
+          setDetectedClis(aiData.detectedClis);
+        }
+      } catch {}
     } catch (err: any) {
       setAuthStatus({ authenticated: false, error: err.message });
     } finally {
@@ -149,6 +172,63 @@ export default function ClientHomePage() {
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  const handleSaveAiConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAiSaving(true);
+    setAiMessage(null);
+    setAiError(null);
+
+    try {
+      const res = await fetch('/api/ai/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: aiProvider,
+          model: aiModel,
+          apiKey: aiApiKey,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'AI 설정 저장 실패');
+
+      setAiMessage('✅ AI 에이전트 설정이 로컬 SQLite에 성공적으로 저장되었습니다.');
+    } catch (err: any) {
+      setAiError(err.message);
+    } finally {
+      setAiSaving(false);
+    }
+  };
+
+  const handleTestAi = async () => {
+    setAiTesting(true);
+    setAiMessage(null);
+    setAiError(null);
+
+    try {
+      const res = await fetch('/api/ai/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: aiProvider,
+          model: aiModel,
+          apiKey: aiApiKey,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'AI 연동 테스트 실패');
+      }
+
+      setAiMessage(`🎉 AI 연동 성공 (${data.providerUsed} / ${data.modelUsed}, ${data.latencyMs}ms):\n"${data.response.slice(0, 100)}..."`);
+    } catch (err: any) {
+      setAiError(err.message);
+    } finally {
+      setAiTesting(false);
+    }
+  };
 
   // Submit Key from Auth Gate
   const handleGateSubmit = async (e: React.FormEvent) => {
@@ -486,6 +566,122 @@ export default function ClientHomePage() {
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Local AI Agent Integration Settings Card (#7) */}
+          <div className="primer-card">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-base font-bold text-[var(--fgColor-default)]">
+                🤖 로컬 AI 에이전트 연동 (Local AI Agent Integration)
+              </h3>
+              {aiProvider === 'none' ? (
+                <span className="primer-badge primer-badge-gray text-xs">🔒 AI 미연동 (Gated)</span>
+              ) : (
+                <span className="primer-badge primer-badge-green text-xs">🟢 AI 연동 활성 ({aiProvider})</span>
+              )}
+            </div>
+
+            <p className="text-xs text-[var(--fgColor-muted)] mb-4">
+              사용자 로컬 머신에 설치된 구독형 AI CLI(Claude, Gemini 등) 또는 직접 API Key를 연동하여 레포지토리 요약 및 실시간 토론에 활용합니다.
+            </p>
+
+            {aiMessage && (
+              <div className="mb-4 rounded-md border border-[var(--borderColor-success-muted)] bg-[var(--bgColor-success-muted)] p-3 text-xs text-[var(--fgColor-success)] whitespace-pre-wrap">
+                {aiMessage}
+              </div>
+            )}
+
+            {aiError && (
+              <div className="mb-4 rounded-md border border-[var(--borderColor-danger-muted)] bg-[var(--bgColor-danger-muted)] p-3 text-xs text-[var(--fgColor-danger)]">
+                {aiError}
+              </div>
+            )}
+
+            {/* Detected Local CLIs */}
+            <div className="mb-4 rounded-md bg-[var(--bgColor-muted)] p-3 text-xs">
+              <p className="font-semibold text-[var(--fgColor-default)] mb-2">💻 로컬 AI CLI 설치 감지 현황:</p>
+              <div className="flex flex-wrap gap-2">
+                {detectedClis.map((cli) => (
+                  <span
+                    key={cli.id}
+                    className={`primer-badge ${cli.installed ? 'primer-badge-green' : 'primer-badge-gray'}`}
+                  >
+                    {cli.installed ? '✓' : '✗'} {cli.name} {cli.installed ? `(${cli.version || 'installed'})` : '(미설치)'}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveAiConfig} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[var(--fgColor-default)] mb-1">
+                  AI 연동 방식 (AI Provider)
+                </label>
+                <select
+                  value={aiProvider}
+                  onChange={(e) => setAiProvider(e.target.value)}
+                  className="w-full rounded-md border border-[var(--borderColor-default)] bg-[var(--bgColor-default)] px-3 py-2 text-sm text-[var(--fgColor-default)]"
+                >
+                  <option value="none">🔒 미연동 (AI 기능 잠금 / TOP 10 열람만 사용)</option>
+                  <option value="cli-claude">🖥️ 로컬 Claude Code CLI (헤드리스 모드)</option>
+                  <option value="cli-gemini">🖥️ 로컬 Google Gemini / AGY CLI</option>
+                  <option value="cli-ollama">🖥️ 로컬 Ollama (로컬 오픈소스 LLM)</option>
+                  <option value="api-openai">🔑 OpenAI API (GPT-4o 등)</option>
+                  <option value="api-anthropic">🔑 Anthropic API (Claude 3.5 Sonnet 등)</option>
+                  <option value="api-gemini">🔑 Google Gemini API</option>
+                  <option value="mock">🧪 Mock AI (테스트 및 오프라인 데모 모드)</option>
+                </select>
+              </div>
+
+              {aiProvider !== 'none' && (
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--fgColor-default)] mb-1">
+                    AI 모델명 (Model Name)
+                  </label>
+                  <input
+                    type="text"
+                    value={aiModel}
+                    onChange={(e) => setAiModel(e.target.value)}
+                    placeholder="예: claude-3-5-sonnet, gpt-4o, llama3"
+                    className="w-full rounded-md border border-[var(--borderColor-default)] bg-[var(--bgColor-default)] px-3 py-2 text-sm text-[var(--fgColor-default)]"
+                  />
+                </div>
+              )}
+
+              {aiProvider.startsWith('api-') && (
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--fgColor-default)] mb-1">
+                    개인 API Key
+                  </label>
+                  <input
+                    type="password"
+                    value={aiApiKey}
+                    onChange={(e) => setAiApiKey(e.target.value)}
+                    placeholder="sk-..."
+                    className="w-full rounded-md border border-[var(--borderColor-default)] bg-[var(--bgColor-default)] px-3 py-2 text-sm font-mono text-[var(--fgColor-default)]"
+                  />
+                </div>
+              )}
+
+              <div className="flex justify-between items-center pt-2">
+                <button
+                  type="button"
+                  onClick={handleTestAi}
+                  disabled={aiTesting || aiProvider === 'none'}
+                  className="primer-btn text-xs"
+                >
+                  {aiTesting ? 'AI 핑 테스트 중...' : '🧪 연동 테스트 (Test)'}
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={aiSaving}
+                  className="primer-btn primer-btn-primary"
+                >
+                  {aiSaving ? '저장 중...' : '💾 AI 설정 저장'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       ) : (
