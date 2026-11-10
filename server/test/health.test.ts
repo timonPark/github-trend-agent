@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { GET } from '../src/app/api/health/route';
 
-describe('Server Health Check API', () => {
-  it('returns status ok and service identifier', async () => {
-    const response = await GET();
-    const data = await response.json();
+describe('Server Health Check API', (): void => {
+  it('returns status ok and service identifier', async (): Promise<void> => {
+    const response: Response = await GET();
+    const data: { status: string; service: string; timestamp: string } =
+      (await response.json()) as { status: string; service: string; timestamp: string };
 
     expect(response.status).toBe(200);
     expect(data.status).toBe('ok');

@@ -10,24 +10,26 @@ const DEFAULT_AI_CONFIG: AiAgentConfig = {
 };
 
 export function getAiConfig(db?: DatabaseInstance): AiAgentConfig {
-  const d = db || getClientDb();
+  const d: DatabaseInstance = db || getClientDb();
 
-  const provider = (getSetting('ai_provider', d) as AiProviderType) || DEFAULT_AI_CONFIG.provider;
-  const model = getSetting('ai_model', d) || DEFAULT_AI_CONFIG.model;
-  const apiKey = getSetting('ai_api_key', d) || DEFAULT_AI_CONFIG.apiKey;
-  const cliPath = getSetting('ai_cli_path', d) || DEFAULT_AI_CONFIG.cliPath;
+  const provider: AiProviderType =
+    (getSetting('ai_provider', d) as AiProviderType) || DEFAULT_AI_CONFIG.provider;
+  const model: string = getSetting('ai_model', d) || DEFAULT_AI_CONFIG.model;
+  const apiKey: string = getSetting('ai_api_key', d) || DEFAULT_AI_CONFIG.apiKey || '';
+  const cliPath: string = getSetting('ai_cli_path', d) || DEFAULT_AI_CONFIG.cliPath || '';
 
-  return {
+  const config: AiAgentConfig = {
     provider,
     model,
     apiKey,
     cliPath,
   };
+  return config;
 }
 
 export function saveAiConfig(newConfig: Partial<AiAgentConfig>, db?: DatabaseInstance): AiAgentConfig {
-  const d = db || getClientDb();
-  const current = getAiConfig(d);
+  const d: DatabaseInstance = db || getClientDb();
+  const current: AiAgentConfig = getAiConfig(d);
 
   const updated: AiAgentConfig = {
     provider: newConfig.provider !== undefined ? newConfig.provider : current.provider,

@@ -2,11 +2,16 @@
 
 import React, { useState, useEffect } from 'react';
 
-export default function Header() {
+interface HeaderProps {
+  username?: string;
+  onOpenSettings?: () => void;
+}
+
+export default function Header({ username, onOpenSettings }: HeaderProps = {}): React.JSX.Element {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
-  useEffect(() => {
-    const saved = localStorage.getItem('color-mode') as 'light' | 'dark' | null;
+  useEffect((): void => {
+    const saved: 'light' | 'dark' | null = localStorage.getItem('color-mode') as 'light' | 'dark' | null;
     if (saved) {
       setTheme(saved);
       document.documentElement.setAttribute('data-color-mode', saved);
@@ -15,8 +20,8 @@ export default function Header() {
     }
   }, []);
 
-  const toggleTheme = () => {
-    const next = theme === 'light' ? 'dark' : 'light';
+  const toggleTheme = (): void => {
+    const next: 'light' | 'dark' = theme === 'light' ? 'dark' : 'light';
     setTheme(next);
     localStorage.setItem('color-mode', next);
     document.documentElement.setAttribute('data-color-mode', next);
@@ -51,10 +56,26 @@ export default function Header() {
 
         {/* Right Actions */}
         <div className="flex items-center gap-3">
+          {username && (
+            <span className="text-xs font-semibold text-[var(--fgColor-default)]">
+              👤 {username}
+            </span>
+          )}
           <div className="flex items-center gap-2 text-xs text-[var(--fgColor-muted)]">
             <span className="inline-block h-2 w-2 rounded-full bg-[var(--fgColor-success)]"></span>
             <span>Local DB Ready</span>
           </div>
+
+          {onOpenSettings && (
+            <button
+              onClick={onOpenSettings}
+              className="primer-btn"
+              title="설정"
+              aria-label="Settings"
+            >
+              ⚙️
+            </button>
+          )}
 
           <button
             onClick={toggleTheme}

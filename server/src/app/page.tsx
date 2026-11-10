@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { toErrorMessage } from '../lib/types/error';
 
 interface AuthUser {
   id: string;
@@ -9,26 +10,36 @@ interface AuthUser {
   created_at: string;
 }
 
-export default function HomePage() {
+interface AuthApiResponse {
+  user: AuthUser;
+  token: string;
+  error?: string;
+}
+
+interface RotateKeyResponse {
+  client_auth_key: string;
+  error?: string;
+}
+
+export default function HomePage(): React.JSX.Element {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [tab, setTab] = useState<'login' | 'register'>('login');
 
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [keyCopied, setKeyCopied] = useState(false);
-  const [showKey, setShowKey] = useState(false);
-  const [rotateLoading, setRotateLoading] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [keyCopied, setKeyCopied] = useState<boolean>(false);
+  const [showKey, setShowKey] = useState<boolean>(false);
+  const [rotateLoading, setRotateLoading] = useState<boolean>(false);
 
-  useEffect(() => {
-    // Check saved session in localStorage for demo client state
-    const savedUser = localStorage.getItem('gta_server_user');
-    const savedToken = localStorage.getItem('gta_server_token');
+  useEffect((): void => {
+    const savedUser: string | null = localStorage.getItem('gta_server_user');
+    const savedToken: string | null = localStorage.getItem('gta_server_token');
     if (savedUser && savedToken) {
       try {
-        setCurrentUser(JSON.parse(savedUser));
+        setCurrentUser(JSON.parse(savedUser) as AuthUser);
         setToken(savedToken);
       } catch {
         // ignore
@@ -36,21 +47,21 @@ export default function HomePage() {
     }
   }, []);
 
-  const handleAuth = async (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    const endpoint = tab === 'register' ? '/api/auth/register' : '/api/auth/login';
+    const endpoint: string = tab === 'register' ? '/api/auth/register' : '/api/auth/login';
 
     try {
-      const res = await fetch(endpoint, {
+      const res: Response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
 
-      const data = await res.json();
+      const data: AuthApiResponse = (await res.json()) as AuthApiResponse;
       if (!res.ok) {
         throw new Error(data.error || 'Authentication failed');
       }
@@ -60,47 +71,53 @@ export default function HomePage() {
       localStorage.setItem('gta_server_user', JSON.stringify(data.user));
       localStorage.setItem('gta_server_token', data.token);
       setPassword('');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(toErrorMessage(err));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = (): void => {
     setCurrentUser(null);
     setToken(null);
     localStorage.removeItem('gta_server_user');
     localStorage.removeItem('gta_server_token');
   };
 
-  const handleCopyKey = () => {
-    if (!currentUser?.client_auth_key) return;
+  const handleCopyKey = (): void => {
+    if (!currentUser?.client_auth_key) {
+      return;
+    }
     navigator.clipboard.writeText(currentUser.client_auth_key);
     setKeyCopied(true);
-    setTimeout(() => setKeyCopied(false), 2000);
+    setTimeout((): void => setKeyCopied(false), 2000);
   };
 
-  const handleRotateKey = async () => {
-    if (!token || !currentUser) return;
+  const handleRotateKey = async (): Promise<void> => {
+    if (!token || !currentUser) {
+      return;
+    }
     setRotateLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/auth/client-key', {
+      const res: Response = await fetch('/api/auth/client-key', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to rotate key');
+      const data: RotateKeyResponse = (await res.json()) as RotateKeyResponse;
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to rotate key');
+      }
 
-      const updated = { ...currentUser, client_auth_key: data.client_auth_key };
+      const updated: AuthUser = { ...currentUser, client_auth_key: data.client_auth_key };
       setCurrentUser(updated);
       localStorage.setItem('gta_server_user', JSON.stringify(updated));
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(toErrorMessage(err));
     } finally {
       setRotateLoading(false);
     }
@@ -168,7 +185,7 @@ export default function HomePage() {
           <div style={{ display: 'flex', borderBottom: '1px solid #d0d7de', marginBottom: '1.5rem' }}>
             <button
               type="button"
-              onClick={() => { setTab('login'); setError(null); }}
+              onClick={(): void => { setTab('login'); setError(null); }}
               style={{
                 flex: 1,
                 padding: '10px',
@@ -184,7 +201,7 @@ export default function HomePage() {
             </button>
             <button
               type="button"
-              onClick={() => { setTab('register'); setError(null); }}
+              onClick={(): void => { setTab('register'); setError(null); }}
               style={{
                 flex: 1,
                 padding: '10px',
@@ -215,7 +232,7 @@ export default function HomePage() {
                 type="text"
                 required
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>): void => setUsername(e.target.value)}
                 placeholder="예: octocat"
                 style={{
                   width: '100%',
@@ -235,7 +252,7 @@ export default function HomePage() {
                 type="password"
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>): void => setPassword(e.target.value)}
                 placeholder="6자리 이상 비밀번호"
                 style={{
                   width: '100%',
@@ -303,7 +320,7 @@ export default function HomePage() {
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
                   type="button"
-                  onClick={() => setShowKey(!showKey)}
+                  onClick={(): void => setShowKey(!showKey)}
                   style={{
                     background: '#f6f8fa',
                     border: '1px solid #d0d7de',

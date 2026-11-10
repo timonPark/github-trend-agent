@@ -17,41 +17,46 @@ import {
 import { Database as DatabaseInstance } from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
+import { LocalSnapshot, DiscussionSession, LocalArchive, TrendingRepository } from '../src/lib/types';
 
-describe('Client Local SQLite Database Layer', () => {
+describe('Client Local SQLite Database Layer', (): void => {
   let testDb: DatabaseInstance;
-  const testDbPath = path.resolve(__dirname, './test-client.db');
+  const testDbPath: string = path.resolve(__dirname, './test-client.db');
 
-  beforeEach(() => {
+  beforeEach((): void => {
     if (fs.existsSync(testDbPath)) {
       fs.unlinkSync(testDbPath);
     }
     testDb = getClientDb(testDbPath);
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     testDb.close();
     if (fs.existsSync(testDbPath)) {
       fs.unlinkSync(testDbPath);
     }
-    const walPath = `${testDbPath}-wal`;
-    const shmPath = `${testDbPath}-shm`;
-    if (fs.existsSync(walPath)) fs.unlinkSync(walPath);
-    if (fs.existsSync(shmPath)) fs.unlinkSync(shmPath);
+    const walPath: string = `${testDbPath}-wal`;
+    const shmPath: string = `${testDbPath}-shm`;
+    if (fs.existsSync(walPath)) {
+      fs.unlinkSync(walPath);
+    }
+    if (fs.existsSync(shmPath)) {
+      fs.unlinkSync(shmPath);
+    }
   });
 
-  it('manages settings and server authentication key', () => {
+  it('manages settings and server authentication key', (): void => {
     expect(getServerAuthKey(testDb)).toBeNull();
 
     setServerAuthKey('gta_live_initial_key_123', testDb);
     expect(getServerAuthKey(testDb)).toBe('gta_live_initial_key_123');
 
-    setSetting('ai_provider', 'claude-cli', testDb);
-    expect(getSetting('ai_provider', testDb)).toBe('claude-cli');
+    setSetting('ai_provider', 'cli-claude', testDb);
+    expect(getSetting('ai_provider', testDb)).toBe('cli-claude');
   });
 
-  it('caches daily snapshots with source tag', () => {
-    const repos = [
+  it('caches daily snapshots with source tag', (): void => {
+    const repos: TrendingRepository[] = [
       {
         rank: 1,
         name: 'test-repo',
@@ -67,7 +72,7 @@ describe('Client Local SQLite Database Layer', () => {
 
     saveLocalSnapshot('2026-11-10', repos, 'remote-server', testDb);
 
-    const cached = getLocalSnapshot('2026-11-10', testDb);
+    const cached: LocalSnapshot | null = getLocalSnapshot('2026-11-10', testDb);
     expect(cached).not.toBeNull();
     expect(cached?.snapshot_date).toBe('2026-11-10');
     expect(cached?.source).toBe('remote-server');
@@ -75,7 +80,7 @@ describe('Client Local SQLite Database Layer', () => {
     expect(cached?.repositories[0].name).toBe('test-repo');
   });
 
-  it('saves and updates multi-turn discussion sessions', () => {
+  it('saves and updates multi-turn discussion sessions', (): void => {
     const session = {
       id: 'session-42',
       repo_full_name: 'facebook/react',
@@ -88,12 +93,12 @@ describe('Client Local SQLite Database Layer', () => {
 
     saveDiscussionSession(session, testDb);
 
-    const loaded = getDiscussionSession('session-42', testDb);
+    const loaded: DiscussionSession | null = getDiscussionSession('session-42', testDb);
     expect(loaded?.messages).toHaveLength(2);
     expect(loaded?.repo_full_name).toBe('facebook/react');
   });
 
-  it('saves local archives and toggles public/private visibility', () => {
+  it('saves local archives and toggles public/private visibility', (): void => {
     const archive = {
       id: 'arch-local-1',
       user_id: 'user-abc',
@@ -111,23 +116,20 @@ describe('Client Local SQLite Database Layer', () => {
 
     saveLocalArchive(archive, testDb);
 
-    const loaded = getLocalArchive('arch-local-1', testDb);
+    const loaded: LocalArchive | null = getLocalArchive('arch-local-1', testDb);
     expect(loaded?.is_public).toBe(false);
     expect(loaded?.synced_with_server).toBe(true);
 
-    const all = listLocalArchives(testDb);
+    const all: LocalArchive[] = listLocalArchives(testDb);
     expect(all).toHaveLength(1);
 
-    // Toggle to public
-    const updated = updateLocalArchiveVisibility('arch-local-1', true, testDb);
+    const updated: LocalArchive | null = updateLocalArchiveVisibility('arch-local-1', true, testDb);
     expect(updated?.is_public).toBe(true);
   });
 
-  it('PRESERVES all local SQLite data when server authentication key is changed', () => {
-    // 1. Setup initial server auth key
+  it('PRESERVES all local SQLite data when server authentication key is changed', (): void => {
     setServerAuthKey('gta_live_first_key', testDb);
 
-    // 2. Populate snapshots, active discussion sessions, and archives
     saveLocalSnapshot(
       '2026-11-10',
       [{ rank: 1, name: 'r1', full_name: 'o/r1', url: 'https://github.com/o/r1', description: 'd', language: 'JS', total_stars: 10, daily_stars: 5 }],
@@ -161,22 +163,19 @@ describe('Client Local SQLite Database Layer', () => {
       testDb
     );
 
-    // 3. User rotates/changes server auth key in settings
     setServerAuthKey('gta_live_SECOND_NEW_KEY_999', testDb);
 
-    // 4. Verify auth key changed
     expect(getServerAuthKey(testDb)).toBe('gta_live_SECOND_NEW_KEY_999');
 
-    // 5. CRITICAL INVARIANT: Verify all local data remains completely intact!
-    const snapshotAfterKeyChange = getLocalSnapshot('2026-11-10', testDb);
+    const snapshotAfterKeyChange: LocalSnapshot | null = getLocalSnapshot('2026-11-10', testDb);
     expect(snapshotAfterKeyChange).not.toBeNull();
     expect(snapshotAfterKeyChange?.repositories[0].name).toBe('r1');
 
-    const sessionAfterKeyChange = getDiscussionSession('session-persist', testDb);
+    const sessionAfterKeyChange: DiscussionSession | null = getDiscussionSession('session-persist', testDb);
     expect(sessionAfterKeyChange).not.toBeNull();
     expect(sessionAfterKeyChange?.messages).toHaveLength(1);
 
-    const archiveAfterKeyChange = getLocalArchive('arch-persist', testDb);
+    const archiveAfterKeyChange: LocalArchive | null = getLocalArchive('arch-persist', testDb);
     expect(archiveAfterKeyChange).not.toBeNull();
     expect(archiveAfterKeyChange?.repo_full_name).toBe('o/r1');
     expect(archiveAfterKeyChange?.is_public).toBe(true);

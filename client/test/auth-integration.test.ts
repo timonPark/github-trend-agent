@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
+import { Database as DatabaseInstance } from 'better-sqlite3';
 import {
   getClientDb,
   resetClientDbForTest,
@@ -10,77 +11,74 @@ import {
   getServerAuthKey,
   setServerAuthKey,
 } from '../src/lib/db';
-import { verifyServerKey, fetchWithServerAuth, UnauthorizedError } from '../src/lib/server-api';
+import { verifyServerKey, fetchWithServerAuth, UnauthorizedError, VerifyKeyResult } from '../src/lib/server-api';
 import { POST as saveSettingsHandler, GET as getSettingsHandler } from '../src/app/api/settings/route';
 import { GET as getAuthStatusHandler } from '../src/app/api/auth/status/route';
 
-const TEST_DB_PATH = path.resolve(__dirname, './test_auth_client.sqlite');
+const TEST_DB_PATH: string = path.resolve(__dirname, './test_auth_client.sqlite');
 
-describe('Client Auth Integration & Local Data Preservation', () => {
-  beforeEach(() => {
+describe('Client Auth Integration & Local Data Preservation', (): void => {
+  beforeEach((): void => {
     resetClientDbForTest();
     if (fs.existsSync(TEST_DB_PATH)) {
-      try { fs.unlinkSync(TEST_DB_PATH); } catch {}
+      try {
+        fs.unlinkSync(TEST_DB_PATH);
+      } catch {
+        // ignore
+      }
     }
     process.env.DATABASE_PATH = TEST_DB_PATH;
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     resetClientDbForTest();
     if (fs.existsSync(TEST_DB_PATH)) {
-      try { fs.unlinkSync(TEST_DB_PATH); } catch {}
+      try {
+        fs.unlinkSync(TEST_DB_PATH);
+      } catch {
+        // ignore
+      }
     }
     vi.restoreAllMocks();
   });
 
-  describe('verifyServerKey helper', () => {
-    it('returns valid: true when server responds 200 with user', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        status: 200,
-        ok: true,
-        json: async () => ({
-          valid: true,
-          user: { id: 'usr-1', username: 'timon' },
-        }),
-      } as any);
+  describe('verifyServerKey helper', (): void => {
+    it('returns valid: true when server responds 200 with user', async (): Promise<void> => {
+      global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+        valid: true,
+        user: { id: 'usr-1', username: 'timon' },
+      }), { status: 200 }));
 
-      const result = await verifyServerKey('http://localhost:4000', 'gta_live_validkey');
+      const result: VerifyKeyResult = await verifyServerKey('http://localhost:4000', 'gta_live_validkey');
       expect(result.valid).toBe(true);
       expect(result.user?.username).toBe('timon');
     });
 
-    it('returns valid: false and statusCode 401 when central server rejects key', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        status: 401,
-        ok: false,
-        json: async () => ({
-          valid: false,
-          error: 'Invalid or expired client auth key',
-        }),
-      } as any);
+    it('returns valid: false and statusCode 401 when central server rejects key', async (): Promise<void> => {
+      global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+        valid: false,
+        error: 'Invalid or expired client auth key',
+      }), { status: 401 }));
 
-      const result = await verifyServerKey('http://localhost:4000', 'gta_live_invalid');
+      const result: VerifyKeyResult = await verifyServerKey('http://localhost:4000', 'gta_live_invalid');
       expect(result.valid).toBe(false);
       expect(result.statusCode).toBe(401);
       expect(result.error).toContain('Invalid or expired');
     });
   });
 
-  describe('fetchWithServerAuth & 401 detection', () => {
-    it('throws UnauthorizedError when no key is set', async () => {
+  describe('fetchWithServerAuth & 401 detection', (): void => {
+    it('throws UnauthorizedError when no key is set', async (): Promise<void> => {
       await expect(
         fetchWithServerAuth(TEST_DB_PATH, '/api/snapshots/today')
       ).rejects.toThrow(UnauthorizedError);
     });
 
-    it('throws UnauthorizedError when server returns 401', async () => {
-      const db = getClientDb(TEST_DB_PATH);
+    it('throws UnauthorizedError when server returns 401', async (): Promise<void> => {
+      const db: DatabaseInstance = getClientDb(TEST_DB_PATH);
       setServerAuthKey('expired_key', db);
 
-      global.fetch = vi.fn().mockResolvedValue({
-        status: 401,
-        ok: false,
-      } as any);
+      global.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
 
       await expect(
         fetchWithServerAuth(TEST_DB_PATH, '/api/snapshots/today')
@@ -88,11 +86,10 @@ describe('Client Auth Integration & Local Data Preservation', () => {
     });
   });
 
-  describe('Settings API & Local Data Retention Invariant', () => {
-    it('preserves existing snapshots, sessions, and archives when changing server_auth_key', async () => {
-      const db = getClientDb(TEST_DB_PATH);
+  describe('Settings API & Local Data Retention Invariant', (): void => {
+    it('preserves existing snapshots, sessions, and archives when changing server_auth_key', async (): Promise<void> => {
+      const db: DatabaseInstance = getClientDb(TEST_DB_PATH);
 
-      // Seed local data
       saveLocalSnapshot(
         '2026-11-10',
         [{
@@ -135,23 +132,16 @@ describe('Client Auth Integration & Local Data Preservation', () => {
         db
       );
 
-      // Verify data exists
       expect(db.prepare('SELECT COUNT(*) as c FROM local_snapshots').get()).toEqual({ c: 1 });
       expect(db.prepare('SELECT COUNT(*) as c FROM discussion_sessions').get()).toEqual({ c: 1 });
       expect(db.prepare('SELECT COUNT(*) as c FROM local_archives').get()).toEqual({ c: 1 });
 
-      // Mock verifyServerKey to accept the new key
-      global.fetch = vi.fn().mockResolvedValue({
-        status: 200,
-        ok: true,
-        json: async () => ({
-          valid: true,
-          user: { id: 'usr-new', username: 'timon_new' },
-        }),
-      } as any);
+      global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+        valid: true,
+        user: { id: 'usr-new', username: 'timon_new' },
+      }), { status: 200 }));
 
-      // Change auth key via Settings POST
-      const req = new Request('http://localhost:3000/api/settings', {
+      const req: Request = new Request('http://localhost:3000/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -161,56 +151,52 @@ describe('Client Auth Integration & Local Data Preservation', () => {
         }),
       });
 
-      const res = await saveSettingsHandler(req);
+      const res: Response = await saveSettingsHandler(req);
       expect(res.status).toBe(200);
-      const resData = await res.json();
+      const resData: { success: boolean } = (await res.json()) as { success: boolean };
       expect(resData.success).toBe(true);
 
-      // Verify key was updated in user_settings
-      const updatedKey = getServerAuthKey(db);
+      const updatedKey: string | null = getServerAuthKey(db);
       expect(updatedKey).toBe('gta_live_brand_new_key_9999');
 
-      // CRITICAL ASSERTION: Existing local data must remain 100% intact!
-      const afterSnapshots = db.prepare('SELECT COUNT(*) as c FROM local_snapshots').get();
-      const afterSessions = db.prepare('SELECT COUNT(*) as c FROM discussion_sessions').get();
-      const afterArchives = db.prepare('SELECT COUNT(*) as c FROM local_archives').get();
+      const afterSnapshots: unknown = db.prepare('SELECT COUNT(*) as c FROM local_snapshots').get();
+      const afterSessions: unknown = db.prepare('SELECT COUNT(*) as c FROM discussion_sessions').get();
+      const afterArchives: unknown = db.prepare('SELECT COUNT(*) as c FROM local_archives').get();
 
       expect(afterSnapshots).toEqual({ c: 1 });
       expect(afterSessions).toEqual({ c: 1 });
       expect(afterArchives).toEqual({ c: 1 });
 
-      // GET settings stats also reflect this
-      const getRes = await getSettingsHandler();
-      const getData = await getRes.json();
+      const getRes: Response = await getSettingsHandler();
+      const getData: { stats: { snapshotCount: number; sessionCount: number; archiveCount: number } } =
+        (await getRes.json()) as { stats: { snapshotCount: number; sessionCount: number; archiveCount: number } };
       expect(getData.stats.snapshotCount).toBe(1);
       expect(getData.stats.sessionCount).toBe(1);
       expect(getData.stats.archiveCount).toBe(1);
     });
   });
 
-  describe('Auth Status API', () => {
-    it('returns authenticated: false when key is not registered', async () => {
-      const res = await getAuthStatusHandler(new Request('http://localhost:3000/api/auth/status'));
-      const data = await res.json();
+  describe('Auth Status API', (): void => {
+    it('returns authenticated: false when key is not registered', async (): Promise<void> => {
+      const res: Response = await getAuthStatusHandler(new Request('http://localhost:3000/api/auth/status'));
+      const data: { authenticated: boolean; error: string } =
+        (await res.json()) as { authenticated: boolean; error: string };
       expect(data.authenticated).toBe(false);
       expect(data.error).toContain('인증 키가 등록되지 않았습니다');
     });
 
-    it('returns authenticated: true when valid key is verified', async () => {
-      const db = getClientDb(TEST_DB_PATH);
+    it('returns authenticated: true when valid key is verified', async (): Promise<void> => {
+      const db: DatabaseInstance = getClientDb(TEST_DB_PATH);
       setServerAuthKey('gta_live_test', db);
 
-      global.fetch = vi.fn().mockResolvedValue({
-        status: 200,
-        ok: true,
-        json: async () => ({
-          valid: true,
-          user: { id: 'usr-1', username: 'timon' },
-        }),
-      } as any);
+      global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+        valid: true,
+        user: { id: 'usr-1', username: 'timon' },
+      }), { status: 200 }));
 
-      const res = await getAuthStatusHandler(new Request('http://localhost:3000/api/auth/status'));
-      const data = await res.json();
+      const res: Response = await getAuthStatusHandler(new Request('http://localhost:3000/api/auth/status'));
+      const data: { authenticated: boolean; user: { username: string } } =
+        (await res.json()) as { authenticated: boolean; user: { username: string } };
       expect(data.authenticated).toBe(true);
       expect(data.user.username).toBe('timon');
     });

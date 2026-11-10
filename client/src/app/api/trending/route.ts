@@ -1,24 +1,37 @@
 import { NextResponse } from 'next/server';
 import { getOrFetchDailySnapshot } from '@/lib/snapshot-service';
 import { UnauthorizedError } from '@/lib/server-api';
+import { toErrorMessage } from '@/lib/types/error';
+import { LocalSnapshot } from '@/lib/types';
 
-export async function GET(request: Request) {
+interface TrendingApiResponse {
+  success: boolean;
+  source?: string;
+  syncedWithServer?: boolean;
+  snapshot?: LocalSnapshot;
+  repositories?: LocalSnapshot['repositories'];
+  error?: string;
+  statusCode?: number;
+}
+
+export async function GET(request: Request): Promise<NextResponse<TrendingApiResponse>> {
   try {
-    const { searchParams } = new URL(request.url);
-    const date = searchParams.get('date') || undefined;
-    const forceRefresh = searchParams.get('force') === 'true';
+    const url: URL = new URL(request.url);
+    const date: string | undefined = url.searchParams.get('date') || undefined;
+    const forceRefresh: boolean = url.searchParams.get('force') === 'true';
 
     const result = await getOrFetchDailySnapshot(date, { forceRefresh });
 
-    return NextResponse.json({
+    return NextResponse.json<TrendingApiResponse>({
       success: true,
       source: result.source,
       syncedWithServer: result.syncedWithServer,
       snapshot: result.snapshot,
+      repositories: result.snapshot.repositories,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof UnauthorizedError) {
-      return NextResponse.json(
+      return NextResponse.json<TrendingApiResponse>(
         {
           success: false,
           statusCode: 401,
@@ -27,6 +40,9 @@ export async function GET(request: Request) {
         { status: 401 }
       );
     }
-    return NextResponse.json({ success: false, error: err.message || 'Failed to fetch trending snapshot' }, { status: 500 });
+    return NextResponse.json<TrendingApiResponse>(
+      { success: false, error: toErrorMessage(err) },
+      { status: 500 }
+    );
   }
 }

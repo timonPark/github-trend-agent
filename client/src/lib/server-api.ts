@@ -1,4 +1,6 @@
+import { Database as DatabaseInstance } from 'better-sqlite3';
 import { getClientDb, getSetting, getServerAuthKey } from './db';
+import { toErrorMessage } from './types/error';
 
 export interface VerifyKeyResult {
   valid: boolean;
@@ -10,8 +12,17 @@ export interface VerifyKeyResult {
   statusCode?: number;
 }
 
+interface ServerVerifyResponse {
+  valid?: boolean;
+  user?: {
+    id: string;
+    username: string;
+  };
+  error?: string;
+}
+
 export class UnauthorizedError extends Error {
-  constructor(message = '401 Unauthorized: Invalid or expired client auth key') {
+  constructor(message: string = '401 Unauthorized: Invalid or expired client auth key') {
     super(message);
     this.name = 'UnauthorizedError';
   }
@@ -21,10 +32,10 @@ export class UnauthorizedError extends Error {
  * Verify a client auth key directly against the central server.
  */
 export async function verifyServerKey(serverUrl: string, clientAuthKey: string): Promise<VerifyKeyResult> {
-  const url = `${serverUrl.replace(/\/+$/, '')}/api/auth/verify-key`;
+  const url: string = `${serverUrl.replace(/\/+$/, '')}/api/auth/verify-key`;
 
   try {
-    const res = await fetch(url, {
+    const res: Response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -33,35 +44,39 @@ export async function verifyServerKey(serverUrl: string, clientAuthKey: string):
       body: JSON.stringify({ client_auth_key: clientAuthKey }),
     });
 
-    const data = await res.json().catch(() => ({}));
+    const data: ServerVerifyResponse = (await res.json().catch((): ServerVerifyResponse => ({}))) as ServerVerifyResponse;
 
     if (res.status === 401) {
-      return {
+      const authFailResult: VerifyKeyResult = {
         valid: false,
         statusCode: 401,
         error: data.error || 'Invalid or expired client auth key',
       };
+      return authFailResult;
     }
 
     if (!res.ok) {
-      return {
+      const errResult: VerifyKeyResult = {
         valid: false,
         statusCode: res.status,
         error: data.error || `Server responded with status ${res.status}`,
       };
+      return errResult;
     }
 
-    return {
+    const successResult: VerifyKeyResult = {
       valid: true,
       statusCode: 200,
       user: data.user,
     };
-  } catch (err: any) {
-    return {
+    return successResult;
+  } catch (err: unknown) {
+    const catchResult: VerifyKeyResult = {
       valid: false,
       statusCode: 500,
-      error: err.message || 'Failed to connect to central server',
+      error: toErrorMessage(err),
     };
+    return catchResult;
   }
 }
 
@@ -74,25 +89,26 @@ export async function fetchWithServerAuth(
   endpointPath: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  const db = getClientDb(dbPath);
-  const serverUrl = getSetting('server_url', db) || process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:4000';
-  const authKey = getServerAuthKey(db);
+  const db: DatabaseInstance = getClientDb(dbPath);
+  const serverUrl: string =
+    getSetting('server_url', db) || process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:4000';
+  const authKey: string | null = getServerAuthKey(db);
 
   if (!authKey) {
     throw new UnauthorizedError('Client authentication key is not registered');
   }
 
-  const cleanServerUrl = serverUrl.replace(/\/+$/, '');
-  const cleanEndpoint = endpointPath.startsWith('/') ? endpointPath : `/${endpointPath}`;
-  const fullUrl = `${cleanServerUrl}${cleanEndpoint}`;
+  const cleanServerUrl: string = serverUrl.replace(/\/+$/, '');
+  const cleanEndpoint: string = endpointPath.startsWith('/') ? endpointPath : `/${endpointPath}`;
+  const fullUrl: string = `${cleanServerUrl}${cleanEndpoint}`;
 
-  const headers = new Headers(options.headers || {});
+  const headers: Headers = new Headers(options.headers || {});
   headers.set('Authorization', `Bearer ${authKey}`);
   if (!headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(fullUrl, {
+  const response: Response = await fetch(fullUrl, {
     ...options,
     headers,
   });

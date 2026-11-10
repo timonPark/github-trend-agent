@@ -11,7 +11,7 @@ export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
-}) {
+}): React.JSX.Element {
   return (
     <html lang="ko" data-color-mode="light" data-light-theme="light" data-dark-theme="dark">
       <body className="min-h-screen bg-[var(--bgColor-default)] text-[var(--fgColor-default)] flex flex-col">

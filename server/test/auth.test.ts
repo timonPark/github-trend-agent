@@ -1,28 +1,30 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { resetServerDbForTest } from '../src/lib/db';
-import { hashPassword, verifyPassword, createSessionToken, verifySessionToken, authenticateClientKey } from '../src/lib/auth';
+import { hashPassword, verifyPassword, createSessionToken, verifySessionToken } from '../src/lib/auth';
 import { POST as registerHandler } from '../src/app/api/auth/register/route';
 import { POST as loginHandler } from '../src/app/api/auth/login/route';
-import { GET as getClientKeyHandler, POST as rotateClientKeyHandler } from '../src/app/api/auth/client-key/route';
+import { POST as rotateClientKeyHandler } from '../src/app/api/auth/client-key/route';
 import { POST as verifyKeyHandler } from '../src/app/api/auth/verify-key/route';
+import { User } from '../src/lib/types';
+import { VerifyKeyResponseDto } from '../src/lib/types/api';
 
-describe('Server Auth & Key Verification', () => {
-  beforeEach(() => {
+describe('Server Auth & Key Verification', (): void => {
+  beforeEach((): void => {
     resetServerDbForTest();
   });
 
-  describe('Password Hashing & Session Token', () => {
-    it('correctly hashes and verifies passwords', () => {
-      const password = 'mySecretPassword123!';
-      const hash = hashPassword(password);
+  describe('Password Hashing & Session Token', (): void => {
+    it('correctly hashes and verifies passwords', (): void => {
+      const password: string = 'mySecretPassword123!';
+      const hash: string = hashPassword(password);
       expect(hash).toContain(':');
       expect(verifyPassword(password, hash)).toBe(true);
       expect(verifyPassword('wrongPassword', hash)).toBe(false);
     });
 
-    it('creates and verifies session tokens', () => {
-      const token = createSessionToken('user-1', 'octocat');
-      const verified = verifySessionToken(token);
+    it('creates and verifies session tokens', (): void => {
+      const token: string = createSessionToken('user-1', 'octocat');
+      const verified: { userId: string; username: string } | null = verifySessionToken(token);
       expect(verified).not.toBeNull();
       expect(verified?.userId).toBe('user-1');
       expect(verified?.username).toBe('octocat');
@@ -31,127 +33,122 @@ describe('Server Auth & Key Verification', () => {
     });
   });
 
-  describe('Auth API Routes', () => {
-    it('registers a new user and generates a client_auth_key', async () => {
-      const req = new Request('http://localhost:4000/api/auth/register', {
+  describe('Auth API Routes', (): void => {
+    it('registers a new user and generates a client_auth_key', async (): Promise<void> => {
+      const req: Request = new Request('http://localhost:4000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: 'timon', password: 'password123' }),
       });
 
-      const res = await registerHandler(req);
+      const res: Response = await registerHandler(req);
       expect(res.status).toBe(201);
-      const data = await res.json();
+      const data: { user: User; token: string } = (await res.json()) as { user: User; token: string };
       expect(data.user.username).toBe('timon');
       expect(data.user.client_auth_key).toMatch(/^gta_live_/);
       expect(data.token).toBeDefined();
 
-      // Duplicate registration should fail
-      const dupReq = new Request('http://localhost:4000/api/auth/register', {
+      const dupReq: Request = new Request('http://localhost:4000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: 'timon', password: 'password456' }),
       });
-      const dupRes = await registerHandler(dupReq);
+      const dupRes: Response = await registerHandler(dupReq);
       expect(dupRes.status).toBe(409);
     });
 
-    it('logs in an existing user and fails on bad credentials', async () => {
-      // Register first
+    it('logs in an existing user and fails on bad credentials', async (): Promise<void> => {
       await registerHandler(new Request('http://localhost:4000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: 'timon', password: 'password123' }),
       }));
 
-      // Login success
-      const loginReq = new Request('http://localhost:4000/api/auth/login', {
+      const loginReq: Request = new Request('http://localhost:4000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: 'timon', password: 'password123' }),
       });
-      const loginRes = await loginHandler(loginReq);
+      const loginRes: Response = await loginHandler(loginReq);
       expect(loginRes.status).toBe(200);
-      const loginData = await loginRes.json();
+      const loginData: { user: User } = (await loginRes.json()) as { user: User };
       expect(loginData.user.username).toBe('timon');
 
-      // Bad password
-      const badReq = new Request('http://localhost:4000/api/auth/login', {
+      const badReq: Request = new Request('http://localhost:4000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: 'timon', password: 'wrongpassword' }),
       });
-      const badRes = await loginHandler(badReq);
+      const badRes: Response = await loginHandler(badReq);
       expect(badRes.status).toBe(401);
     });
 
-    it('rotates client auth key and verifies old key is invalidated', async () => {
-      const regRes = await registerHandler(new Request('http://localhost:4000/api/auth/register', {
+    it('rotates client auth key and verifies old key is invalidated', async (): Promise<void> => {
+      const regRes: Response = await registerHandler(new Request('http://localhost:4000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: 'timon', password: 'password123' }),
       }));
-      const { user, token } = await regRes.json();
-      const oldKey = user.client_auth_key;
+      const { user, token }: { user: User; token: string } = (await regRes.json()) as { user: User; token: string };
+      const oldKey: string = user.client_auth_key;
 
-      // Verify old key works initially
-      const vOldReq = new Request('http://localhost:4000/api/auth/verify-key', {
+      const vOldReq: Request = new Request('http://localhost:4000/api/auth/verify-key', {
         method: 'POST',
         headers: { Authorization: `Bearer ${oldKey}` },
       });
-      const vOldRes = await verifyKeyHandler(vOldReq);
+      const vOldRes: Response = await verifyKeyHandler(vOldReq);
       expect(vOldRes.status).toBe(200);
-      expect((await vOldRes.json()).valid).toBe(true);
+      const vOldData: VerifyKeyResponseDto = (await vOldRes.json()) as VerifyKeyResponseDto;
+      expect(vOldData.valid).toBe(true);
 
-      // Rotate key
-      const rotateReq = new Request('http://localhost:4000/api/auth/client-key', {
+      const rotateReq: Request = new Request('http://localhost:4000/api/auth/client-key', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
-      const rotateRes = await rotateClientKeyHandler(rotateReq);
+      const rotateRes: Response = await rotateClientKeyHandler(rotateReq);
       expect(rotateRes.status).toBe(200);
-      const { client_auth_key: newKey } = await rotateRes.json();
+      const { client_auth_key: newKey }: { client_auth_key: string } =
+        (await rotateRes.json()) as { client_auth_key: string };
       expect(newKey).not.toBe(oldKey);
 
-      // Now old key must fail with 401
-      const vOldAgainReq = new Request('http://localhost:4000/api/auth/verify-key', {
+      const vOldAgainReq: Request = new Request('http://localhost:4000/api/auth/verify-key', {
         method: 'POST',
         headers: { Authorization: `Bearer ${oldKey}` },
       });
-      const vOldAgainRes = await verifyKeyHandler(vOldAgainReq);
+      const vOldAgainRes: Response = await verifyKeyHandler(vOldAgainReq);
       expect(vOldAgainRes.status).toBe(401);
-      expect((await vOldAgainRes.json()).valid).toBe(false);
+      const vOldAgainData: VerifyKeyResponseDto = (await vOldAgainRes.json()) as VerifyKeyResponseDto;
+      expect(vOldAgainData.valid).toBe(false);
 
-      // New key must succeed with 200
-      const vNewReq = new Request('http://localhost:4000/api/auth/verify-key', {
+      const vNewReq: Request = new Request('http://localhost:4000/api/auth/verify-key', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ client_auth_key: newKey }),
       });
-      const vNewRes = await verifyKeyHandler(vNewReq);
+      const vNewRes: Response = await verifyKeyHandler(vNewReq);
       expect(vNewRes.status).toBe(200);
-      const vNewData = await vNewRes.json();
+      const vNewData: VerifyKeyResponseDto = (await vNewRes.json()) as VerifyKeyResponseDto;
       expect(vNewData.valid).toBe(true);
-      expect(vNewData.user.username).toBe('timon');
+      expect(vNewData.user?.username).toBe('timon');
     });
 
-    it('rejects verification when key is missing or wrong', async () => {
-      // Empty header & body
-      const emptyReq = new Request('http://localhost:4000/api/auth/verify-key', {
+    it('rejects verification when key is missing or wrong', async (): Promise<void> => {
+      const emptyReq: Request = new Request('http://localhost:4000/api/auth/verify-key', {
         method: 'POST',
       });
-      const emptyRes = await verifyKeyHandler(emptyReq);
+      const emptyRes: Response = await verifyKeyHandler(emptyReq);
       expect(emptyRes.status).toBe(401);
-      expect((await emptyRes.json()).valid).toBe(false);
+      const emptyData: VerifyKeyResponseDto = (await emptyRes.json()) as VerifyKeyResponseDto;
+      expect(emptyData.valid).toBe(false);
 
-      // Wrong key
-      const wrongReq = new Request('http://localhost:4000/api/auth/verify-key', {
+      const wrongReq: Request = new Request('http://localhost:4000/api/auth/verify-key', {
         method: 'POST',
         headers: { Authorization: 'Bearer gta_live_fake_key_1234567890' },
       });
-      const wrongRes = await verifyKeyHandler(wrongReq);
+      const wrongRes: Response = await verifyKeyHandler(wrongReq);
       expect(wrongRes.status).toBe(401);
-      expect((await wrongRes.json()).valid).toBe(false);
+      const wrongData: VerifyKeyResponseDto = (await wrongRes.json()) as VerifyKeyResponseDto;
+      expect(wrongData.valid).toBe(false);
     });
   });
 });

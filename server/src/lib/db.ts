@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { User, DailySnapshot, DiscussionArchive, TrendingRepository, ChatMessage } from './types';
+import { User, DailySnapshot, DiscussionArchive, TrendingRepository } from './types';
 import crypto from 'crypto';
 
 export interface ServerDatabase {
@@ -17,14 +17,16 @@ export interface ServerDatabase {
   updateArchiveVisibility(id: string, user_id: string, is_public: boolean): Promise<DiscussionArchive | null>;
 }
 
+export type ServerDbAdapter = ServerDatabase;
+
 // In-Memory fallback implementation for tests and local standalone runs
 class MemoryServerDatabase implements ServerDatabase {
-  private users: Map<string, User> = new Map();
-  private snapshots: Map<string, DailySnapshot> = new Map();
-  private archives: Map<string, DiscussionArchive> = new Map();
+  private users: Map<string, User> = new Map<string, User>();
+  private snapshots: Map<string, DailySnapshot> = new Map<string, DailySnapshot>();
+  private archives: Map<string, DiscussionArchive> = new Map<string, DiscussionArchive>();
 
   async createUser(username: string, password_hash: string, client_auth_key?: string): Promise<User> {
-    const existing = await this.findUserByUsername(username);
+    const existing: User | null = await this.findUserByUsername(username);
     if (existing) {
       throw new Error(`Username ${username} already exists`);
     }
@@ -46,22 +48,28 @@ class MemoryServerDatabase implements ServerDatabase {
 
   async findUserByUsername(username: string): Promise<User | null> {
     for (const user of this.users.values()) {
-      if (user.username === username) return user;
+      if (user.username === username) {
+        return user;
+      }
     }
     return null;
   }
 
   async findUserByClientAuthKey(client_auth_key: string): Promise<User | null> {
     for (const user of this.users.values()) {
-      if (user.client_auth_key === client_auth_key) return user;
+      if (user.client_auth_key === client_auth_key) {
+        return user;
+      }
     }
     return null;
   }
 
   async rotateClientAuthKey(user_id: string): Promise<string> {
-    const user = this.users.get(user_id);
-    if (!user) throw new Error('User not found');
-    const newKey = `gta_live_${crypto.randomBytes(24).toString('hex')}`;
+    const user: User | undefined = this.users.get(user_id);
+    if (!user) {
+      throw new Error('User not found');
+    }
+    const newKey: string = `gta_live_${crypto.randomBytes(24).toString('hex')}`;
     user.client_auth_key = newKey;
     return newKey;
   }
@@ -101,7 +109,7 @@ class MemoryServerDatabase implements ServerDatabase {
         results.push(item);
       }
     }
-    return results.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    return results.sort((a: DiscussionArchive, b: DiscussionArchive): number => b.created_at.localeCompare(a.created_at));
   }
 
   async listPublicDiscussionArchives(): Promise<DiscussionArchive[]> {
@@ -111,11 +119,11 @@ class MemoryServerDatabase implements ServerDatabase {
         results.push(item);
       }
     }
-    return results.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    return results.sort((a: DiscussionArchive, b: DiscussionArchive): number => b.created_at.localeCompare(a.created_at));
   }
 
   async updateArchiveVisibility(id: string, user_id: string, is_public: boolean): Promise<DiscussionArchive | null> {
-    const item = this.archives.get(id);
+    const item: DiscussionArchive | undefined = this.archives.get(id);
     if (!item || item.user_id !== user_id) {
       return null;
     }
@@ -133,13 +141,15 @@ class SupabaseServerDatabase implements ServerDatabase {
   }
 
   async createUser(username: string, password_hash: string, client_auth_key?: string): Promise<User> {
-    const key = client_auth_key || `gta_live_${crypto.randomBytes(24).toString('hex')}`;
+    const key: string = client_auth_key || `gta_live_${crypto.randomBytes(24).toString('hex')}`;
     const { data, error } = await this.client
       .from('users')
       .insert({ username, password_hash, client_auth_key: key })
       .select()
       .single();
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message);
+    }
     return data as User;
   }
 
@@ -149,7 +159,9 @@ class SupabaseServerDatabase implements ServerDatabase {
       .select()
       .eq('id', id)
       .maybeSingle();
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message);
+    }
     return data as User | null;
   }
 
@@ -159,7 +171,9 @@ class SupabaseServerDatabase implements ServerDatabase {
       .select()
       .eq('username', username)
       .maybeSingle();
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message);
+    }
     return data as User | null;
   }
 
@@ -169,17 +183,21 @@ class SupabaseServerDatabase implements ServerDatabase {
       .select()
       .eq('client_auth_key', client_auth_key)
       .maybeSingle();
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message);
+    }
     return data as User | null;
   }
 
   async rotateClientAuthKey(user_id: string): Promise<string> {
-    const newKey = `gta_live_${crypto.randomBytes(24).toString('hex')}`;
+    const newKey: string = `gta_live_${crypto.randomBytes(24).toString('hex')}`;
     const { error } = await this.client
       .from('users')
       .update({ client_auth_key: newKey })
       .eq('id', user_id);
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message);
+    }
     return newKey;
   }
 
@@ -189,12 +207,19 @@ class SupabaseServerDatabase implements ServerDatabase {
       .select()
       .eq('snapshot_date', snapshot_date)
       .maybeSingle();
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message);
+    }
     return data as DailySnapshot | null;
   }
 
   async saveDailySnapshot(snapshot_date: string, repositories: TrendingRepository[], created_by?: string): Promise<DailySnapshot> {
-    const payload = {
+    const payload: {
+      snapshot_date: string;
+      repositories: TrendingRepository[];
+      created_by?: string;
+      updated_at: string;
+    } = {
       snapshot_date,
       repositories,
       created_by,
@@ -205,12 +230,14 @@ class SupabaseServerDatabase implements ServerDatabase {
       .upsert(payload, { onConflict: 'snapshot_date' })
       .select()
       .single();
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message);
+    }
     return data as DailySnapshot;
   }
 
   async createDiscussionArchive(archive: Omit<DiscussionArchive, 'created_at'>): Promise<DiscussionArchive> {
-    const payload = {
+    const payload: Omit<DiscussionArchive, 'created_at'> & { created_at: string } = {
       ...archive,
       created_at: new Date().toISOString(),
     };
@@ -219,7 +246,9 @@ class SupabaseServerDatabase implements ServerDatabase {
       .insert(payload)
       .select()
       .single();
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message);
+    }
     return data as DiscussionArchive;
   }
 
@@ -229,7 +258,9 @@ class SupabaseServerDatabase implements ServerDatabase {
       .select()
       .eq('id', id)
       .maybeSingle();
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message);
+    }
     return data as DiscussionArchive | null;
   }
 
@@ -239,7 +270,9 @@ class SupabaseServerDatabase implements ServerDatabase {
       .select()
       .eq('user_id', user_id)
       .order('created_at', { ascending: false });
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message);
+    }
     return (data || []) as DiscussionArchive[];
   }
 
@@ -249,7 +282,9 @@ class SupabaseServerDatabase implements ServerDatabase {
       .select()
       .eq('is_public', true)
       .order('created_at', { ascending: false });
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message);
+    }
     return (data || []) as DiscussionArchive[];
   }
 
@@ -261,7 +296,9 @@ class SupabaseServerDatabase implements ServerDatabase {
       .eq('user_id', user_id)
       .select()
       .maybeSingle();
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message);
+    }
     return data as DiscussionArchive | null;
   }
 }
@@ -270,10 +307,12 @@ class SupabaseServerDatabase implements ServerDatabase {
 let dbInstance: ServerDatabase | null = null;
 
 export function getServerDb(): ServerDatabase {
-  if (dbInstance) return dbInstance;
+  if (dbInstance) {
+    return dbInstance;
+  }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url: string | undefined = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const key: string | undefined = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (url && key) {
     dbInstance = new SupabaseServerDatabase(url, key);

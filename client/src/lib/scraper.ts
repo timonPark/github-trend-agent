@@ -3,36 +3,43 @@ import { TrendingRepository } from './types';
 /**
  * Parses GitHub Trending HTML page content and returns normalized TrendingRepository objects.
  */
-export function parseTrendingHtml(html: string, max = 10): TrendingRepository[] {
-  if (!html || typeof html !== 'string') return [];
+export function parseTrendingHtml(html: string, max: number = 10): TrendingRepository[] {
+  if (!html || typeof html !== 'string') {
+    return [];
+  }
 
-  // Split into articles
-  const rawArticles = html.split(/<article\s+class="Box-row"[^>]*>/i).slice(1);
+  const rawArticles: string[] = html.split(/<article\s+class="Box-row"[^>]*>/i).slice(1);
   const repositories: TrendingRepository[] = [];
 
-  for (let i = 0; i < rawArticles.length; i++) {
-    if (repositories.length >= max) break;
-    const article = rawArticles[i];
+  for (let i: number = 0; i < rawArticles.length; i++) {
+    if (repositories.length >= max) {
+      break;
+    }
+    const article: string = rawArticles[i];
 
-    // 1. Repo Full Name & URL (e.g. /owner/repo)
-    const nameMatch = article.match(/<h2[^>]*>[\s\S]*?<a\s+[^>]*href="\/([^"\s]+)"/i);
-    if (!nameMatch) continue;
+    const nameMatch: RegExpMatchArray | null = article.match(/<h2[^>]*>[\s\S]*?<a\s+[^>]*href="\/([^"\s]+)"/i);
+    if (!nameMatch) {
+      continue;
+    }
 
-    const rawPath = nameMatch[1].trim();
-    const parts = rawPath.split('/').filter(Boolean);
-    if (parts.length < 2) continue;
+    const rawPath: string = nameMatch[1].trim();
+    const parts: string[] = rawPath.split('/').filter(Boolean);
+    if (parts.length < 2) {
+      continue;
+    }
 
-    const owner = parts[0];
-    const name = parts[1];
-    const full_name = `${owner}/${name}`;
-    const url = `https://github.com/${full_name}`;
+    const owner: string = parts[0];
+    const name: string = parts[1];
+    const full_name: string = `${owner}/${name}`;
+    const url: string = `https://github.com/${full_name}`;
 
-    // 2. Description
-    const descMatch = article.match(/<p[^>]*class="[^"]*col-9[^"]*"[^>]*>([\s\S]*?)<\/p>/i);
-    let description = '';
+    const descMatch: RegExpMatchArray | null = article.match(
+      /<p[^>]*class="[^"]*col-9[^"]*"[^>]*>([\s\S]*?)<\/p>/i
+    );
+    let description: string = '';
     if (descMatch) {
       description = descMatch[1]
-        .replace(/<[^>]+>/g, '') // remove inner HTML tags
+        .replace(/<[^>]+>/g, '')
         .replace(/&amp;/g, '&')
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
@@ -42,36 +49,35 @@ export function parseTrendingHtml(html: string, max = 10): TrendingRepository[] 
         .trim();
     }
 
-    // 3. Language
-    const langMatch = article.match(/<span[^>]*itemprop="programmingLanguage"[^>]*>([\s\S]*?)<\/span>/i);
-    const language = langMatch ? langMatch[1].trim() : 'Unknown';
+    const langMatch: RegExpMatchArray | null = article.match(
+      /<span[^>]*itemprop="programmingLanguage"[^>]*>([\s\S]*?)<\/span>/i
+    );
+    const language: string = langMatch ? langMatch[1].trim() : 'Unknown';
 
-    // 4. Total Stars
-    // Typically in <a href="/owner/repo/stargazers"> 12,345 </a>
-    let total_stars = 0;
-    const stargazersMatch = article.match(/href="\/[^"]*\/stargazers"[^>]*>([\s\S]*?)<\/a>/i);
+    let total_stars: number = 0;
+    const stargazersMatch: RegExpMatchArray | null = article.match(
+      /href="\/[^"]*\/stargazers"[^>]*>([\s\S]*?)<\/a>/i
+    );
     if (stargazersMatch) {
-      const cleanStars = stargazersMatch[1].replace(/<[^>]+>/g, '').replace(/,/g, '').trim();
+      const cleanStars: string = stargazersMatch[1].replace(/<[^>]+>/g, '').replace(/,/g, '').trim();
       total_stars = parseInt(cleanStars, 10) || 0;
     }
 
-    // 5. Daily Stars (e.g. "450 stars today" or "1,234 stars today")
-    let daily_stars = 0;
-    const dailyMatch = article.match(/([0-9,]+)\s+stars?\s+today/i);
+    let daily_stars: number = 0;
+    const dailyMatch: RegExpMatchArray | null = article.match(/([0-9,]+)\s+stars?\s+today/i);
     if (dailyMatch) {
       daily_stars = parseInt(dailyMatch[1].replace(/,/g, ''), 10) || 0;
     } else {
-      // Fallback: look for float-sm-right span
-      const rightSpan = article.match(/<span[^>]*float-sm-right[^>]*>([\s\S]*?)<\/span>/i);
+      const rightSpan: RegExpMatchArray | null = article.match(/<span[^>]*float-sm-right[^>]*>([\s\S]*?)<\/span>/i);
       if (rightSpan) {
-        const num = rightSpan[1].match(/([0-9,]+)/);
+        const num: RegExpMatchArray | null = rightSpan[1].match(/([0-9,]+)/);
         if (num) {
           daily_stars = parseInt(num[1].replace(/,/g, ''), 10) || 0;
         }
       }
     }
 
-    repositories.push({
+    const repoItem: TrendingRepository = {
       rank: repositories.length + 1,
       name,
       full_name,
@@ -80,7 +86,8 @@ export function parseTrendingHtml(html: string, max = 10): TrendingRepository[] 
       language,
       total_stars,
       daily_stars,
-    });
+    };
+    repositories.push(repoItem);
   }
 
   return repositories;
@@ -88,22 +95,19 @@ export function parseTrendingHtml(html: string, max = 10): TrendingRepository[] 
 
 /**
  * Cleans raw markdown content for AI context and discussion summaries.
- * Removes heavy badge links, raw HTML tags, and truncates to a token-friendly length.
  */
-export function cleanMarkdownReadme(rawMarkdown: string, maxChars = 8000): string {
-  if (!rawMarkdown) return '';
+export function cleanMarkdownReadme(rawMarkdown: string, maxChars: number = 8000): string {
+  if (!rawMarkdown) {
+    return '';
+  }
 
-  let cleaned = rawMarkdown
-    // Remove HTML comments
+  let cleaned: string = rawMarkdown
     .replace(/<!--[\s\S]*?-->/g, '')
-    // Remove image badges e.g. [![build](https://...)] or ![badge](https://...)
     .replace(/\[!\[[^\]]*\]\([^)]+\)\]\([^)]+\)/g, '')
     .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
-    // Remove heavy raw HTML blocks like <div align="center">...</div>
     .replace(/<div\b[^>]*>([\s\S]*?)<\/div>/gi, '$1')
     .replace(/<p\b[^>]*>([\s\S]*?)<\/p>/gi, '$1\n')
     .replace(/<[^>]+>/g, '')
-    // Normalize excess whitespace and blank lines
     .replace(/\r\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
@@ -117,22 +121,21 @@ export function cleanMarkdownReadme(rawMarkdown: string, maxChars = 8000): strin
 
 /**
  * Fetches the raw README.md for a repository from GitHub.
- * Tries HEAD, main, and master branches sequentially.
  */
 export async function fetchRepositoryReadme(fullName: string): Promise<string> {
-  const branches = ['HEAD', 'main', 'master'];
+  const branches: string[] = ['HEAD', 'main', 'master'];
 
   for (const branch of branches) {
-    const rawUrl = `https://raw.githubusercontent.com/${fullName}/${branch}/README.md`;
+    const rawUrl: string = `https://raw.githubusercontent.com/${fullName}/${branch}/README.md`;
     try {
-      const res = await fetch(rawUrl, {
+      const res: Response = await fetch(rawUrl, {
         headers: {
           'User-Agent': 'GitHub-Trend-Agent/1.0',
         },
       });
 
       if (res.ok) {
-        const text = await res.text();
+        const text: string = await res.text();
         return cleanMarkdownReadme(text);
       }
     } catch {
@@ -140,34 +143,36 @@ export async function fetchRepositoryReadme(fullName: string): Promise<string> {
     }
   }
 
-  // Also try lowercase readme.md
   try {
-    const res = await fetch(`https://raw.githubusercontent.com/${fullName}/HEAD/readme.md`, {
+    const res: Response = await fetch(`https://raw.githubusercontent.com/${fullName}/HEAD/readme.md`, {
       headers: { 'User-Agent': 'GitHub-Trend-Agent/1.0' },
     });
     if (res.ok) {
-      const text = await res.text();
+      const text: string = await res.text();
       return cleanMarkdownReadme(text);
     }
-  } catch {}
+  } catch {
+    // fallback
+  }
 
   return '';
 }
 
 /**
  * Scrapes GitHub daily trending page directly.
- * If network request fails or returns blocked response, can fall back to seed samples if enabled.
  */
-export async function scrapeGitHubTrending(options: {
-  since?: 'daily';
-  max?: number;
-  fallbackSample?: boolean;
-} = {}): Promise<TrendingRepository[]> {
+export async function scrapeGitHubTrending(
+  options: {
+    since?: 'daily';
+    max?: number;
+    fallbackSample?: boolean;
+  } = {}
+): Promise<TrendingRepository[]> {
   const { since = 'daily', max = 10, fallbackSample = true } = options;
-  const trendingUrl = `https://github.com/trending?since=${since}`;
+  const trendingUrl: string = `https://github.com/trending?since=${since}`;
 
   try {
-    const response = await fetch(trendingUrl, {
+    const response: Response = await fetch(trendingUrl, {
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -177,17 +182,16 @@ export async function scrapeGitHubTrending(options: {
     });
 
     if (response.ok) {
-      const html = await response.text();
-      const parsed = parseTrendingHtml(html, max);
+      const html: string = await response.text();
+      const parsed: TrendingRepository[] = parseTrendingHtml(html, max);
       if (parsed.length > 0) {
         return parsed;
       }
     }
-  } catch (err) {
-    // network or block issue
+  } catch {
+    // network issue
   }
 
-  // Graceful fallback to verified trend seed repositories if live fetch fails or is throttled
   if (fallbackSample) {
     return getFallbackTrendingRepositories(max);
   }
@@ -198,7 +202,7 @@ export async function scrapeGitHubTrending(options: {
 /**
  * Reliable fallback sample trending data in case GitHub blocks automated scrapers.
  */
-export function getFallbackTrendingRepositories(max = 10): TrendingRepository[] {
+export function getFallbackTrendingRepositories(max: number = 10): TrendingRepository[] {
   const samples: TrendingRepository[] = [
     {
       rank: 1,

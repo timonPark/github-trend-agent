@@ -6,8 +6,9 @@ import {
   scrapeGitHubTrending,
   getFallbackTrendingRepositories,
 } from '../src/lib/scraper';
+import { TrendingRepository } from '../src/lib/types';
 
-const MOCK_TRENDING_HTML = `
+const MOCK_TRENDING_HTML: string = `
 <!DOCTYPE html>
 <html>
 <body>
@@ -82,14 +83,14 @@ const MOCK_TRENDING_HTML = `
 </html>
 `;
 
-describe('GitHub Trending Headless Scraper (#5)', () => {
-  afterEach(() => {
+describe('GitHub Trending Headless Scraper (#5)', (): void => {
+  afterEach((): void => {
     vi.restoreAllMocks();
   });
 
-  describe('parseTrendingHtml', () => {
-    it('parses repositories accurately from trending HTML', () => {
-      const repos = parseTrendingHtml(MOCK_TRENDING_HTML, 10);
+  describe('parseTrendingHtml', (): void => {
+    it('parses repositories accurately from trending HTML', (): void => {
+      const repos: TrendingRepository[] = parseTrendingHtml(MOCK_TRENDING_HTML, 10);
       expect(repos).toHaveLength(3);
 
       expect(repos[0]).toEqual({
@@ -119,23 +120,23 @@ describe('GitHub Trending Headless Scraper (#5)', () => {
       expect(repos[2].daily_stars).toBe(210);
     });
 
-    it('respects the max limit parameter', () => {
-      const repos = parseTrendingHtml(MOCK_TRENDING_HTML, 2);
+    it('respects the max limit parameter', (): void => {
+      const repos: TrendingRepository[] = parseTrendingHtml(MOCK_TRENDING_HTML, 2);
       expect(repos).toHaveLength(2);
       expect(repos[0].rank).toBe(1);
       expect(repos[1].rank).toBe(2);
     });
 
-    it('handles empty or corrupted HTML gracefully without throwing', () => {
+    it('handles empty or corrupted HTML gracefully without throwing', (): void => {
       expect(parseTrendingHtml('')).toEqual([]);
       expect(parseTrendingHtml('<div>No articles here</div>')).toEqual([]);
-      expect(parseTrendingHtml(null as any)).toEqual([]);
+      expect(parseTrendingHtml(null as unknown as string)).toEqual([]);
     });
   });
 
-  describe('cleanMarkdownReadme', () => {
-    it('removes badge images, raw HTML tags and comments', () => {
-      const rawReadme = `
+  describe('cleanMarkdownReadme', (): void => {
+    it('removes badge images, raw HTML tags and comments', (): void => {
+      const rawReadme: string = `
 # Awesome Project
 
 <!-- Some internal comments -->
@@ -149,7 +150,7 @@ describe('GitHub Trending Headless Scraper (#5)', () => {
 Here is the primary description of the project.
 `;
 
-      const cleaned = cleanMarkdownReadme(rawReadme);
+      const cleaned: string = cleanMarkdownReadme(rawReadme);
       expect(cleaned).not.toContain('<!--');
       expect(cleaned).not.toContain('shields.io');
       expect(cleaned).not.toContain('<div');
@@ -158,60 +159,54 @@ Here is the primary description of the project.
       expect(cleaned).toContain('Here is the primary description of the project.');
     });
 
-    it('truncates long READMEs to maxChars with notice', () => {
-      const longText = 'A'.repeat(500);
-      const cleaned = cleanMarkdownReadme(longText, 200);
+    it('truncates long READMEs to maxChars with notice', (): void => {
+      const longText: string = 'A'.repeat(500);
+      const cleaned: string = cleanMarkdownReadme(longText, 200);
       expect(cleaned.length).toBeLessThan(350);
       expect(cleaned).toContain('... (README truncated for context length optimization)');
     });
   });
 
-  describe('fetchRepositoryReadme', () => {
-    it('fetches raw README from GitHub and cleans it', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        text: async () => '# Test Repo\n\nThis is a test readme with ![badge](https://badge.com)',
-      } as any);
+  describe('fetchRepositoryReadme', (): void => {
+    it('fetches raw README from GitHub and cleans it', async (): Promise<void> => {
+      global.fetch = vi.fn().mockResolvedValue(new Response(
+        '# Test Repo\n\nThis is a test readme with ![badge](https://badge.com)',
+        { status: 200 }
+      ));
 
-      const readme = await fetchRepositoryReadme('owner/test-repo');
+      const readme: string = await fetchRepositoryReadme('owner/test-repo');
       expect(readme).toContain('# Test Repo');
       expect(readme).not.toContain('badge.com');
     });
 
-    it('returns empty string when all branches fail', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 404,
-      } as any);
+    it('returns empty string when all branches fail', async (): Promise<void> => {
+      global.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 404 }));
 
-      const readme = await fetchRepositoryReadme('owner/non-existent');
+      const readme: string = await fetchRepositoryReadme('owner/non-existent');
       expect(readme).toBe('');
     });
   });
 
-  describe('scrapeGitHubTrending', () => {
-    it('returns parsed trending repos when live fetch succeeds', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        text: async () => MOCK_TRENDING_HTML,
-      } as any);
+  describe('scrapeGitHubTrending', (): void => {
+    it('returns parsed trending repos when live fetch succeeds', async (): Promise<void> => {
+      global.fetch = vi.fn().mockResolvedValue(new Response(MOCK_TRENDING_HTML, { status: 200 }));
 
-      const repos = await scrapeGitHubTrending({ max: 2 });
+      const repos: TrendingRepository[] = await scrapeGitHubTrending({ max: 2 });
       expect(repos).toHaveLength(2);
       expect(repos[0].name).toBe('repo-alpha');
     });
 
-    it('falls back to seed dataset when live fetch fails', async () => {
+    it('falls back to seed dataset when live fetch fails', async (): Promise<void> => {
       global.fetch = vi.fn().mockRejectedValue(new Error('Network offline or rate limit'));
 
-      const repos = await scrapeGitHubTrending({ max: 5, fallbackSample: true });
+      const repos: TrendingRepository[] = await scrapeGitHubTrending({ max: 5, fallbackSample: true });
       expect(repos).toHaveLength(5);
       expect(repos[0].rank).toBe(1);
       expect(repos[0].total_stars).toBeGreaterThan(0);
     });
 
-    it('provides exactly 10 fallback trending repositories', () => {
-      const samples = getFallbackTrendingRepositories(10);
+    it('provides exactly 10 fallback trending repositories', (): void => {
+      const samples: TrendingRepository[] = getFallbackTrendingRepositories(10);
       expect(samples).toHaveLength(10);
       expect(samples[0].rank).toBe(1);
       expect(samples[9].rank).toBe(10);

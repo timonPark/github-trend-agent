@@ -1,14 +1,23 @@
 import { NextResponse } from 'next/server';
+import { Database as DatabaseInstance } from 'better-sqlite3';
 import { getClientDb } from '@/lib/db';
 import { getAiConfig } from '@/lib/ai/config';
 import { executeAiRequest } from '@/lib/ai/runner';
-import { AiAgentConfig } from '@/lib/ai/types';
+import { AiAgentConfig, AiExecutionResult } from '@/lib/ai/types';
+import { toErrorMessage } from '@/lib/types/error';
 
-export async function POST(request: Request) {
+interface AiTestRequestBody {
+  provider?: AiAgentConfig['provider'];
+  model?: string;
+  apiKey?: string;
+  cliPath?: string;
+  prompt?: string;
+}
+
+export async function POST(request: Request): Promise<NextResponse<AiExecutionResult>> {
   try {
-    const body = await request.json().catch(() => ({}));
+    const body: AiTestRequestBody = (await request.json().catch((): AiTestRequestBody => ({}))) as AiTestRequestBody;
 
-    // If config is passed directly in body, use it for on-the-fly testing before saving
     let config: AiAgentConfig;
     if (body.provider) {
       config = {
@@ -18,21 +27,24 @@ export async function POST(request: Request) {
         cliPath: body.cliPath || '',
       };
     } else {
-      const db = getClientDb();
+      const db: DatabaseInstance = getClientDb();
       config = getAiConfig(db);
     }
 
-    const testPrompt = body.prompt || 'Hello! Reply with a brief confirmation message if you can process this instruction.';
-    const result = await executeAiRequest(config, testPrompt);
+    const testPrompt: string =
+      body.prompt || 'Hello! Reply with a brief confirmation message if you can process this instruction.';
+    const result: AiExecutionResult = await executeAiRequest(config, testPrompt);
 
-    return NextResponse.json(result, { status: result.success ? 200 : 400 });
-  } catch (err: any) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: err.message || 'Internal AI test error',
-      },
-      { status: 500 }
-    );
+    return NextResponse.json<AiExecutionResult>(result, { status: result.success ? 200 : 400 });
+  } catch (err: unknown) {
+    const errorResult: AiExecutionResult = {
+      success: false,
+      response: '',
+      modelUsed: 'unknown',
+      providerUsed: 'none',
+      latencyMs: 0,
+      error: toErrorMessage(err),
+    };
+    return NextResponse.json<AiExecutionResult>(errorResult, { status: 500 });
   }
 }

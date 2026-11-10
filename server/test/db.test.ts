@@ -1,35 +1,36 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getServerDb, resetServerDbForTest } from '../src/lib/db';
+import { getServerDb, resetServerDbForTest, ServerDatabase } from '../src/lib/db';
+import { User, TrendingRepository, DailySnapshot, DiscussionArchive } from '../src/lib/types';
 
-describe('Central Server Database Layer', () => {
-  let db: ReturnType<typeof getServerDb>;
+describe('Central Server Database Layer', (): void => {
+  let db: ServerDatabase;
 
-  beforeEach(() => {
+  beforeEach((): void => {
     db = resetServerDbForTest();
   });
 
-  it('creates user with client_auth_key and allows rotation', async () => {
-    const user = await db.createUser('timonPark', 'hash123');
+  it('creates user with client_auth_key and allows rotation', async (): Promise<void> => {
+    const user: User = await db.createUser('timonPark', 'hash123');
 
     expect(user.username).toBe('timonPark');
     expect(user.client_auth_key).toMatch(/^gta_live_/);
 
-    const found = await db.findUserByClientAuthKey(user.client_auth_key);
+    const found: User | null = await db.findUserByClientAuthKey(user.client_auth_key);
     expect(found?.id).toBe(user.id);
 
-    const oldKey = user.client_auth_key;
-    const newKey = await db.rotateClientAuthKey(user.id);
+    const oldKey: string = user.client_auth_key;
+    const newKey: string = await db.rotateClientAuthKey(user.id);
     expect(newKey).not.toBe(oldKey);
 
-    const oldLookup = await db.findUserByClientAuthKey(oldKey);
+    const oldLookup: User | null = await db.findUserByClientAuthKey(oldKey);
     expect(oldLookup).toBeNull();
 
-    const newLookup = await db.findUserByClientAuthKey(newKey);
+    const newLookup: User | null = await db.findUserByClientAuthKey(newKey);
     expect(newLookup?.id).toBe(user.id);
   });
 
-  it('saves and retrieves daily snapshots by date key', async () => {
-    const repos = [
+  it('saves and retrieves daily snapshots by date key', async (): Promise<void> => {
+    const repos: TrendingRepository[] = [
       {
         rank: 1,
         name: 'sample-repo',
@@ -43,19 +44,18 @@ describe('Central Server Database Layer', () => {
       },
     ];
 
-    const saved = await db.saveDailySnapshot('2026-11-10', repos, 'client-node-1');
+    const saved: DailySnapshot = await db.saveDailySnapshot('2026-11-10', repos, 'client-node-1');
     expect(saved.snapshot_date).toBe('2026-11-10');
     expect(saved.repositories).toHaveLength(1);
 
-    const retrieved = await db.getDailySnapshot('2026-11-10');
+    const retrieved: DailySnapshot | null = await db.getDailySnapshot('2026-11-10');
     expect(retrieved?.repositories[0].name).toBe('sample-repo');
   });
 
-  it('manages discussion archives and public/private visibility', async () => {
-    const user1 = await db.createUser('user1', 'pw1');
-    const user2 = await db.createUser('user2', 'pw2');
+  it('manages discussion archives and public/private visibility', async (): Promise<void> => {
+    const user1: User = await db.createUser('user1', 'pw1');
+    const user2: User = await db.createUser('user2', 'pw2');
 
-    // Archive 1: Private (Default)
     await db.createDiscussionArchive({
       id: 'arch-1',
       user_id: user1.id,
@@ -72,7 +72,6 @@ describe('Central Server Database Layer', () => {
       is_public: false,
     });
 
-    // Archive 2: Public
     await db.createDiscussionArchive({
       id: 'arch-2',
       user_id: user2.id,
@@ -88,22 +87,19 @@ describe('Central Server Database Layer', () => {
       is_public: true,
     });
 
-    // User 1 sees their private archive
-    const user1Archives = await db.listDiscussionArchivesByUser(user1.id);
+    const user1Archives: DiscussionArchive[] = await db.listDiscussionArchivesByUser(user1.id);
     expect(user1Archives).toHaveLength(1);
     expect(user1Archives[0].id).toBe('arch-1');
     expect(user1Archives[0].messages).toHaveLength(2);
 
-    // Public feed contains only public archive
-    const publicArchives = await db.listPublicDiscussionArchives();
+    const publicArchives: DiscussionArchive[] = await db.listPublicDiscussionArchives();
     expect(publicArchives).toHaveLength(1);
     expect(publicArchives[0].id).toBe('arch-2');
 
-    // Toggle arch-1 to public
-    const updated = await db.updateArchiveVisibility('arch-1', user1.id, true);
+    const updated: DiscussionArchive | null = await db.updateArchiveVisibility('arch-1', user1.id, true);
     expect(updated?.is_public).toBe(true);
 
-    const publicAfterToggle = await db.listPublicDiscussionArchives();
+    const publicAfterToggle: DiscussionArchive[] = await db.listPublicDiscussionArchives();
     expect(publicAfterToggle).toHaveLength(2);
   });
 });
