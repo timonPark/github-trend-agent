@@ -55,6 +55,8 @@ export default function ClientHomePage() {
 
   // Trending Scraper State
   const [trendingRepos, setTrendingRepos] = useState<TrendingRepoItem[]>([]);
+  const [trendingSource, setTrendingSource] = useState<'local-cache' | 'remote-server' | 'fresh-scraped' | null>(null);
+  const [syncedWithServer, setSyncedWithServer] = useState(false);
   const [scraping, setScraping] = useState(false);
   const [selectedReadmeRepo, setSelectedReadmeRepo] = useState<TrendingRepoItem | null>(null);
   const [readmeLoading, setReadmeLoading] = useState(false);
@@ -95,27 +97,22 @@ export default function ClientHomePage() {
     }
   };
 
-  const loadTrendingData = async () => {
+  const loadTrendingData = async (forceRefresh = false) => {
     try {
-      const res = await fetch('/api/trending/scrape');
+      setScraping(true);
+      const res = await fetch(`/api/trending${forceRefresh ? '?force=true' : ''}`);
       const data = await res.json();
-      if (data.snapshot?.repositories) {
-        setTrendingRepos(data.snapshot.repositories);
-      }
-    } catch {}
-  };
 
-  const handleManualScrape = async () => {
-    setScraping(true);
-    try {
-      const res = await fetch('/api/trending/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fetchReadme: false }),
-      });
-      const data = await res.json();
+      if (res.status === 401) {
+        setAuthExpiredAlert('중앙 서버 통신 중 401 Unauthorized 에러가 감지되었습니다. 설정 화면에서 인증 키를 확인해주세요.');
+        setActiveTab('settings');
+        return;
+      }
+
       if (data.snapshot?.repositories) {
         setTrendingRepos(data.snapshot.repositories);
+        setTrendingSource(data.source);
+        setSyncedWithServer(!!data.syncedWithServer);
       }
       // Refresh stats
       const setRes = await fetch('/api/settings');
@@ -518,22 +515,48 @@ export default function ClientHomePage() {
 
           {activeTab === 'top10' && (
             <div className="space-y-4">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-wrap justify-between items-center gap-2">
                 <div>
-                  <h3 className="text-base font-bold text-[var(--fgColor-default)]">
-                    🌟 일일 GitHub Star 급상승 TOP 10
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-[var(--fgColor-default)]">
+                      🌟 일일 GitHub Star 급상승 TOP 10
+                    </h3>
+                    {trendingSource === 'local-cache' && (
+                      <span className="primer-badge primer-badge-green text-xs">
+                        🟢 로컬 SQLite 캐시 (Tier 1)
+                      </span>
+                    )}
+                    {trendingSource === 'remote-server' && (
+                      <span className="primer-badge primer-badge-green text-xs">
+                        🌐 중앙 서버 공유 캐시 (Tier 2)
+                      </span>
+                    )}
+                    {trendingSource === 'fresh-scraped' && (
+                      <span className="primer-badge primer-badge-yellow text-xs">
+                        ⚡ 신규 실시간 수집 (Tier 3)
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-[var(--fgColor-muted)]">
-                    오늘 0시 기준 GitHub Trending 페이지에서 헤드리스로 수집된 인기 레포지토리 목록입니다.
+                    매일 0시 기준 Dual-DB 3단계 캐싱으로 중복 크롤링 없이 클라이언트 간 공유됩니다.
                   </p>
                 </div>
-                <button
-                  onClick={handleManualScrape}
-                  disabled={scraping}
-                  className="primer-btn primer-btn-primary text-xs"
-                >
-                  {scraping ? '수집 실행 중...' : '🔄 지금 수집 실행'}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => loadTrendingData(false)}
+                    disabled={scraping}
+                    className="primer-btn text-xs"
+                  >
+                    {scraping ? '조회 중...' : '🔄 캐시 조회'}
+                  </button>
+                  <button
+                    onClick={() => loadTrendingData(true)}
+                    disabled={scraping}
+                    className="primer-btn primer-btn-primary text-xs"
+                  >
+                    {scraping ? '수집 실행 중...' : '⚡ 강제 재수집 (Force)'}
+                  </button>
+                </div>
               </div>
 
               {trendingRepos.length === 0 ? (
