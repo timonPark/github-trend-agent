@@ -86,3 +86,7 @@ Behavioral guidelines and workflow rules for `github-trend-agent`.
 ### Domain docs
 
 단일 컨텍스트(루트 `GLOSSARY.md` + `docs/adr/`). `docs/agents/domain.md` 참조.
+
+### Design system
+
+모든 UI 스타일과 디자인 토큰(색상, 타이포그래피, 여백, 테두리 등)은 GitHub의 공식 디자인 시스템 토큰인 **`@primer/primitives`** 패키지로 통일합니다. 토큰 정의 및 구조 참조 시 로컬 레퍼런스(`/Users/2309-n0018/Project/primer-primitives`)를 확인하세요.
