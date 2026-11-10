@@ -7,6 +7,7 @@ import { TrendingDashboard } from '../components/TrendingDashboard';
 import { SettingsTab } from '../components/SettingsTab';
 import { ReadmeModal } from '../components/ReadmeModal';
 import { TrendingRepository } from '../lib/types';
+import { getTodayString } from '../lib/date-utils';
 import { AiAgentConfig, DetectedCli } from '../lib/ai/types';
 import { toErrorMessage } from '../lib/types/error';
 import {
@@ -41,6 +42,8 @@ export default function ClientHomePage(): React.JSX.Element {
   const [detectedClis, setDetectedClis] = useState<DetectedCli[]>([]);
 
   // Trending & Readme State
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayString());
+  const [loadingDate, setLoadingDate] = useState<boolean>(false);
   const [trendingRepos, setTrendingRepos] = useState<TrendingRepository[]>([]);
   const [trendingSource, setTrendingSource] = useState<'local-cache' | 'remote-server' | 'fresh-scraped' | null>(null);
   const [syncedWithServer, setSyncedWithServer] = useState<boolean>(false);
@@ -50,20 +53,35 @@ export default function ClientHomePage(): React.JSX.Element {
   const [readmeContent, setReadmeContent] = useState<string>('');
   const [generatingDigestRepo, setGeneratingDigestRepo] = useState<string | null>(null);
 
-  const loadTrendingData = useCallback(async (): Promise<void> => {
+  const loadTrendingData = useCallback(async (targetDate?: string): Promise<void> => {
     try {
-      const res: Response = await fetch('/api/trending');
+      const dateQuery: string = targetDate ? `?date=${targetDate}` : '';
+      const res: Response = await fetch(`/api/trending${dateQuery}`);
       const data: TrendingResponseDto & { syncedWithServer?: boolean } =
         (await res.json()) as TrendingResponseDto & { syncedWithServer?: boolean };
       if (data.repositories) {
         setTrendingRepos(data.repositories);
         setTrendingSource(data.cached ? 'local-cache' : data.source === 'remote-server' ? 'remote-server' : 'fresh-scraped');
         setSyncedWithServer(data.syncedWithServer || data.source === 'remote-server');
+      } else {
+        setTrendingRepos([]);
+        setTrendingSource(null);
+        setSyncedWithServer(false);
       }
     } catch {
-      // Offline fallback
+      setTrendingRepos([]);
     }
   }, []);
+
+  const handleDateChange = async (newDate: string): Promise<void> => {
+    setSelectedDate(newDate);
+    setLoadingDate(true);
+    try {
+      await loadTrendingData(newDate);
+    } finally {
+      setLoadingDate(false);
+    }
+  };
 
   const loadInitialData = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -149,11 +167,10 @@ export default function ClientHomePage(): React.JSX.Element {
   };
 
   const requestDigestApi = async (repoFullName: string): Promise<string> => {
-    const today: string = new Date().toISOString().split('T')[0];
     const res: Response = await fetch('/api/digest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ snapshot_date: today, repo_full_name: repoFullName }),
+      body: JSON.stringify({ snapshot_date: selectedDate, repo_full_name: repoFullName }),
     });
     const data: ApiResponse<GenerateDigestResponseDto> =
       (await res.json()) as ApiResponse<GenerateDigestResponseDto>;
@@ -297,12 +314,15 @@ export default function ClientHomePage(): React.JSX.Element {
         {activeTab === 'top10' && (
           <TrendingDashboard
             repos={trendingRepos}
+            selectedDate={selectedDate}
             source={trendingSource}
             syncedWithServer={syncedWithServer}
             scraping={scraping}
+            loadingDate={loadingDate}
             aiGated={aiConfig.provider === 'none'}
             generatingDigestRepo={generatingDigestRepo}
             onRefresh={handleManualScrape}
+            onDateChange={handleDateChange}
             onOpenReadme={handleOpenReadme}
             onGenerateDigest={handleGenerateDigest}
             onStartDiscussion={handleStartDiscussion}
