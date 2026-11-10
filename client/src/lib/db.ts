@@ -182,6 +182,28 @@ export function saveLocalSnapshot(
   return snapshot;
 }
 
+export function updateLocalRepoDigest(
+  snapshot_date: string,
+  repo_full_name: string,
+  digest: string,
+  db?: DatabaseInstance
+): LocalSnapshot | null {
+  const d: DatabaseInstance = db || getClientDb();
+  const snapshot: LocalSnapshot | null = getLocalSnapshot(snapshot_date, d);
+  if (!snapshot) {
+    return null;
+  }
+  const updatedRepos: TrendingRepository[] = snapshot.repositories.map(
+    (repo: TrendingRepository): TrendingRepository => {
+      if (repo.full_name === repo_full_name) {
+        return { ...repo, digest };
+      }
+      return repo;
+    }
+  );
+  return saveLocalSnapshot(snapshot_date, updatedRepos, snapshot.source, d);
+}
+
 // Discussion Session Helpers (Active Chat Workspace)
 export function getDiscussionSession(id: string, db?: DatabaseInstance): DiscussionSession | null {
   const d: DatabaseInstance = db || getClientDb();

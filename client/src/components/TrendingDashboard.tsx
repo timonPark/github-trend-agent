@@ -2,14 +2,19 @@
 
 import React from 'react';
 import { TrendingRepository } from '../lib/types';
+import { TrendingRepoCard } from './TrendingRepoCard';
 
 interface TrendingDashboardProps {
   repos: TrendingRepository[];
   source: 'local-cache' | 'remote-server' | 'fresh-scraped' | null;
   syncedWithServer: boolean;
   scraping: boolean;
+  aiGated: boolean;
+  generatingDigestRepo: string | null;
   onRefresh: () => void;
   onOpenReadme: (repo: TrendingRepository) => void;
+  onGenerateDigest: (repo: TrendingRepository) => void;
+  onStartDiscussion: (repo: TrendingRepository) => void;
 }
 
 export function TrendingDashboard({
@@ -17,8 +22,12 @@ export function TrendingDashboard({
   source,
   syncedWithServer,
   scraping,
+  aiGated,
+  generatingDigestRepo,
   onRefresh,
   onOpenReadme,
+  onGenerateDigest,
+  onStartDiscussion,
 }: TrendingDashboardProps): React.JSX.Element {
   return (
     <div>
@@ -59,6 +68,22 @@ export function TrendingDashboard({
                 중앙 동기화 완료
               </span>
             )}
+            {aiGated && (
+              <span
+                style={{
+                  display: 'inline-block',
+                  backgroundColor: '#fff8c5',
+                  color: '#9a6700',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                }}
+                title="설정 탭에서 Local AI Agent를 연동해주세요"
+              >
+                AI 미연동 (요약·토론 제한됨)
+              </span>
+            )}
           </div>
         </div>
 
@@ -97,100 +122,15 @@ export function TrendingDashboard({
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {repos.map((repo: TrendingRepository): React.JSX.Element => (
-            <div
+            <TrendingRepoCard
               key={repo.rank}
-              style={{
-                padding: '16px 20px',
-                backgroundColor: '#ffffff',
-                border: '1px solid #d0d7de',
-                borderRadius: '6px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                transition: 'border-color 0.15s ease',
-              }}
-            >
-              <div style={{ flex: 1, paddingRight: '20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                  <span
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '24px',
-                      height: '24px',
-                      backgroundColor: repo.rank <= 3 ? '#0969da' : '#eaeef2',
-                      color: repo.rank <= 3 ? '#ffffff' : '#656d76',
-                      borderRadius: '50%',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {repo.rank}
-                  </span>
-                  <a
-                    href={repo.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      fontSize: '16px',
-                      fontWeight: 600,
-                      color: '#0969da',
-                      textDecoration: 'none',
-                    }}
-                  >
-                    {repo.full_name}
-                  </a>
-                </div>
-                <p
-                  style={{
-                    fontSize: '13px',
-                    color: '#656d76',
-                    margin: '0 0 10px 0',
-                    lineHeight: 1.4,
-                  }}
-                >
-                  {repo.description || '설명이 등록되어 있지 않습니다.'}
-                </p>
-                <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: '#656d76' }}>
-                  {repo.language && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span
-                        style={{
-                          width: '8px',
-                          height: '8px',
-                          borderRadius: '50%',
-                          backgroundColor: '#0969da',
-                        }}
-                      />
-                      {repo.language}
-                    </span>
-                  )}
-                  <span>★ {repo.total_stars.toLocaleString()} stars</span>
-                  <span style={{ color: '#1a7f37', fontWeight: 600 }}>
-                    ▲ +{repo.daily_stars.toLocaleString()} today
-                  </span>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  onClick={(): void => onOpenReadme(repo)}
-                  style={{
-                    padding: '6px 12px',
-                    fontSize: '12px',
-                    fontWeight: 500,
-                    color: '#1f2328',
-                    backgroundColor: '#f6f8fa',
-                    border: '1px solid #d0d7de',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  README
-                </button>
-              </div>
-            </div>
+              repo={repo}
+              aiGated={aiGated}
+              generatingDigest={generatingDigestRepo === repo.full_name}
+              onOpenReadme={onOpenReadme}
+              onGenerateDigest={onGenerateDigest}
+              onStartDiscussion={onStartDiscussion}
+            />
           ))}
         </div>
       )}
