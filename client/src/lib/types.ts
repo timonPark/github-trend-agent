@@ -8,6 +8,7 @@ export interface TrendingRepository {
   total_stars: number;
   daily_stars: number;
   digest?: string;
+  readme?: string;
 }
 
 export interface LocalSnapshot {
