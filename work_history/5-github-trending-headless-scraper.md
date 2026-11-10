@@ -6,8 +6,8 @@
 - **작업 브랜치**: `5-github-trending-headless-scraper`
 - **담당자**: `timonPark`
 - **시작 일시**: 2026-11-10 14:01 KST
-- **최종 완료일시**: 2026-11-10 14:05 KST
-- **상태**: PR 생성 대기 및 검증 완료
+- **최종 완료일시**: 2026-11-10 14:06 KST
+- **상태**: PR #21 머지 및 완료 (Closed)
 
 ---
 
@@ -47,3 +47,4 @@
 6. **[2026-11-10 14:03 KST]** 수집기 단위/통합 테스트 작성 ([`client/test/scraper.test.ts`](file:///Users/2309-n0018/Project/github-trend-agent/client/test/scraper.test.ts)):
    - HTML 파싱 정확도, max 제한, 빈 HTML 예외 처리, README 정제, fetchFallback 검증 10/10 통과.
 7. **[2026-11-10 14:04 KST]** 전체 34개 테스트 100% 통과 (server 10개, client 24개) 및 양측 Next.js 프로덕션 빌드 성공 확인.
+8. **[2026-11-10 14:06 KST]** PR [#21](https://github.com/timonPark/github-trend-agent/pull/21) 생성 및 사용자 승인 후 메인 브랜치 머지 완료. 브랜치 `5-github-trending-headless-scraper` 삭제 및 이슈 #5 자동 Close 확인.
