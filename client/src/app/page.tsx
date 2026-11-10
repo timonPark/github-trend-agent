@@ -19,6 +19,18 @@ interface LocalStats {
   archiveCount: number;
 }
 
+interface TrendingRepoItem {
+  rank: number;
+  name: string;
+  full_name: string;
+  url: string;
+  description: string;
+  language: string;
+  total_stars: number;
+  daily_stars: number;
+  readme?: string;
+}
+
 export default function ClientHomePage() {
   const [activeTab, setActiveTab] = useState<'top10' | 'discussion' | 'archives' | 'settings'>('top10');
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
@@ -40,6 +52,13 @@ export default function ClientHomePage() {
 
   // 401 Alert State
   const [authExpiredAlert, setAuthExpiredAlert] = useState<string | null>(null);
+
+  // Trending Scraper State
+  const [trendingRepos, setTrendingRepos] = useState<TrendingRepoItem[]>([]);
+  const [scraping, setScraping] = useState(false);
+  const [selectedReadmeRepo, setSelectedReadmeRepo] = useState<TrendingRepoItem | null>(null);
+  const [readmeLoading, setReadmeLoading] = useState(false);
+  const [readmeContent, setReadmeContent] = useState<string>('');
 
   // Load auth status and settings
   const loadInitialData = async () => {
@@ -66,10 +85,67 @@ export default function ClientHomePage() {
       if (setData.stats) {
         setStats(setData.stats);
       }
+
+      // 3. Fetch Initial Trending Snapshots
+      loadTrendingData();
     } catch (err: any) {
       setAuthStatus({ authenticated: false, error: err.message });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTrendingData = async () => {
+    try {
+      const res = await fetch('/api/trending/scrape');
+      const data = await res.json();
+      if (data.snapshot?.repositories) {
+        setTrendingRepos(data.snapshot.repositories);
+      }
+    } catch {}
+  };
+
+  const handleManualScrape = async () => {
+    setScraping(true);
+    try {
+      const res = await fetch('/api/trending/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fetchReadme: false }),
+      });
+      const data = await res.json();
+      if (data.snapshot?.repositories) {
+        setTrendingRepos(data.snapshot.repositories);
+      }
+      // Refresh stats
+      const setRes = await fetch('/api/settings');
+      const setData = await setRes.json();
+      if (setData.stats) setStats(setData.stats);
+    } catch {}
+    finally {
+      setScraping(false);
+    }
+  };
+
+  const handleOpenReadme = async (repo: TrendingRepoItem) => {
+    setSelectedReadmeRepo(repo);
+    setReadmeLoading(true);
+    setReadmeContent('');
+
+    try {
+      // Try to fetch raw readme directly
+      const rawUrl = `https://raw.githubusercontent.com/${repo.full_name}/HEAD/README.md`;
+      const res = await fetch(rawUrl);
+      if (res.ok) {
+        const text = await res.text();
+        setReadmeContent(text.slice(0, 5000));
+      } else {
+        setReadmeContent('README를 가져올 수 없습니다.');
+      }
+    } catch {
+      setReadmeContent('README를 불러오는 중 오류가 발생했습니다.');
+    } finally {
+      setReadmeLoading(false);
     }
   };
 
@@ -440,18 +516,144 @@ export default function ClientHomePage() {
             </div>
           </div>
 
-          <div className="primer-card">
-            <h3 className="text-base font-bold text-[var(--fgColor-default)] mb-2">
-              {activeTab === 'top10' && '🌟 Today\'s Daily GitHub Star TOP 10'}
-              {activeTab === 'discussion' && '💬 Real-time AI Discussion Session'}
-              {activeTab === 'archives' && '📚 My Discussion Archives (Local & Server)'}
-            </h3>
-            <p className="text-xs text-[var(--fgColor-muted)]">
-              {activeTab === 'top10' && '중앙 서버 인증이 완료되었습니다. 일일 스냅샷 수집 기능은 다음 이슈(#5)에서 활성화됩니다.'}
-              {activeTab === 'discussion' && '로컬 AI 에이전트와의 실시간 토론 기능은 M3/M4 마일스톤에서 활성화됩니다.'}
-              {activeTab === 'archives' && '토론 아카이브 열람 및 공개/비공개 전환 기능은 M4 마일스톤(#12)에서 구현됩니다.'}
-            </p>
-          </div>
+          {activeTab === 'top10' && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-base font-bold text-[var(--fgColor-default)]">
+                    🌟 일일 GitHub Star 급상승 TOP 10
+                  </h3>
+                  <p className="text-xs text-[var(--fgColor-muted)]">
+                    오늘 0시 기준 GitHub Trending 페이지에서 헤드리스로 수집된 인기 레포지토리 목록입니다.
+                  </p>
+                </div>
+                <button
+                  onClick={handleManualScrape}
+                  disabled={scraping}
+                  className="primer-btn primer-btn-primary text-xs"
+                >
+                  {scraping ? '수집 실행 중...' : '🔄 지금 수집 실행'}
+                </button>
+              </div>
+
+              {trendingRepos.length === 0 ? (
+                <div className="primer-card text-center py-8 text-xs text-[var(--fgColor-muted)]">
+                  아직 수집된 스냅샷이 없습니다. [지금 수집 실행] 버튼을 눌러보세요.
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {trendingRepos.map((repo) => (
+                    <div
+                      key={repo.full_name}
+                      className="primer-card flex flex-col md:flex-row items-start md:items-center justify-between gap-3 hover:border-[var(--borderColor-accent-emphasis)] transition-colors"
+                    >
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--bgColor-muted)] font-mono text-xs font-bold text-[var(--fgColor-default)]">
+                          {repo.rank}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={repo.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-bold text-sm text-[var(--fgColor-accent)] hover:underline truncate"
+                            >
+                              {repo.full_name}
+                            </a>
+                            <span className="primer-badge primer-badge-gray text-[10px]">
+                              {repo.language}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-[var(--fgColor-muted)] line-clamp-2">
+                            {repo.description || '설명이 없습니다.'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4 shrink-0 text-xs text-[var(--fgColor-muted)]">
+                        <div className="text-right">
+                          <p className="font-semibold text-[var(--fgColor-default)]">
+                            ★ {repo.total_stars.toLocaleString()}
+                          </p>
+                          <p className="text-[var(--fgColor-success)] font-medium">
+                            +{repo.daily_stars.toLocaleString()} today
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleOpenReadme(repo)}
+                          className="primer-btn text-xs py-1 px-2"
+                        >
+                          📖 README
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'discussion' && (
+            <div className="primer-card">
+              <h3 className="text-base font-bold text-[var(--fgColor-default)] mb-2">
+                💬 Real-time AI Discussion Session
+              </h3>
+              <p className="text-xs text-[var(--fgColor-muted)]">
+                로컬 AI 에이전트와의 실시간 토론 기능은 M3/M4 마일스톤에서 활성화됩니다.
+              </p>
+            </div>
+          )}
+
+          {activeTab === 'archives' && (
+            <div className="primer-card">
+              <h3 className="text-base font-bold text-[var(--fgColor-default)] mb-2">
+                📚 My Discussion Archives (Local & Server)
+              </h3>
+              <p className="text-xs text-[var(--fgColor-muted)]">
+                토론 아카이브 열람 및 공개/비공개 전환 기능은 M4 마일스톤(#12)에서 구현됩니다.
+              </p>
+            </div>
+          )}
+
+          {/* README Modal */}
+          {selectedReadmeRepo && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="primer-card max-h-[80vh] w-full max-w-3xl overflow-hidden flex flex-col bg-[var(--bgColor-default)] shadow-2xl">
+                <div className="flex justify-between items-center border-b border-[var(--borderColor-default)] pb-3 mb-3">
+                  <div>
+                    <h3 className="text-base font-bold text-[var(--fgColor-default)]">
+                      📖 {selectedReadmeRepo.full_name} README.md
+                    </h3>
+                    <a
+                      href={selectedReadmeRepo.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-[var(--fgColor-accent)] hover:underline"
+                    >
+                      {selectedReadmeRepo.url}
+                    </a>
+                  </div>
+                  <button
+                    onClick={() => setSelectedReadmeRepo(null)}
+                    className="primer-btn text-xs"
+                  >
+                    닫기 ✕
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-2 bg-[var(--bgColor-muted)] rounded font-mono text-xs leading-relaxed whitespace-pre-wrap">
+                  {readmeLoading ? (
+                    <div className="text-center py-8 text-[var(--fgColor-muted)]">
+                      README 원문을 불러오고 있습니다...
+                    </div>
+                  ) : (
+                    readmeContent
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </main>
