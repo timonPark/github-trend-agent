@@ -35,6 +35,10 @@ export interface VerifyKeyRequestDto {
 
 export interface VerifyKeyResponseDto {
   valid: boolean;
+  user?: {
+    id: string;
+    username: string;
+  };
   user_id?: string;
   username?: string;
   error?: string;

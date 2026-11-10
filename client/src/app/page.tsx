@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Header from '../components/Header';
 import { AuthGate } from '../components/AuthGate';
 import { TrendingDashboard } from '../components/TrendingDashboard';
@@ -9,17 +9,13 @@ import { ReadmeModal } from '../components/ReadmeModal';
 import { TrendingRepository } from '../lib/types';
 import { AiAgentConfig, DetectedCli } from '../lib/ai/types';
 import { toErrorMessage } from '../lib/types/error';
-
-interface AuthStatus {
-  authenticated: boolean;
-  server_url?: string;
-  user?: {
-    id: string;
-    username: string;
-  };
-  error?: string;
-  statusCode?: number;
-}
+import {
+  AuthStatusResponseDto,
+  ClientSettingsDto,
+  TrendingResponseDto,
+  ScrapeTrendingResponseDto,
+  AiStatusResponseDto,
+} from '../lib/types/api';
 
 interface LocalStats {
   snapshotCount: number;
@@ -27,14 +23,14 @@ interface LocalStats {
   archiveCount: number;
 }
 
-export default function ClientHomePage() {
+export default function ClientHomePage(): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<'top10' | 'discussion' | 'archives' | 'settings'>('top10');
-  const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [authStatus, setAuthStatus] = useState<AuthStatusResponseDto | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   // Settings & Local Stats
-  const [serverUrl, setServerUrl] = useState('http://localhost:4000');
-  const [serverAuthKey, setServerAuthKey] = useState('');
+  const [serverUrl, setServerUrl] = useState<string>('http://localhost:4000');
+  const [serverAuthKey, setServerAuthKey] = useState<string>('');
   const [stats, setStats] = useState<LocalStats>({ snapshotCount: 0, sessionCount: 0, archiveCount: 0 });
   const [authExpiredAlert, setAuthExpiredAlert] = useState<string | null>(null);
 
@@ -45,16 +41,17 @@ export default function ClientHomePage() {
   // Trending & Readme State
   const [trendingRepos, setTrendingRepos] = useState<TrendingRepository[]>([]);
   const [trendingSource, setTrendingSource] = useState<'local-cache' | 'remote-server' | 'fresh-scraped' | null>(null);
-  const [syncedWithServer, setSyncedWithServer] = useState(false);
-  const [scraping, setScraping] = useState(false);
+  const [syncedWithServer, setSyncedWithServer] = useState<boolean>(false);
+  const [scraping, setScraping] = useState<boolean>(false);
   const [selectedReadmeRepo, setSelectedReadmeRepo] = useState<TrendingRepository | null>(null);
-  const [readmeLoading, setReadmeLoading] = useState(false);
+  const [readmeLoading, setReadmeLoading] = useState<boolean>(false);
   const [readmeContent, setReadmeContent] = useState<string>('');
 
-  const loadTrendingData = useCallback(async () => {
+  const loadTrendingData = useCallback(async (): Promise<void> => {
     try {
-      const res = await fetch('/api/trending');
-      const data = await res.json();
+      const res: Response = await fetch('/api/trending');
+      const data: TrendingResponseDto & { syncedWithServer?: boolean } =
+        (await res.json()) as TrendingResponseDto & { syncedWithServer?: boolean };
       if (data.repositories) {
         setTrendingRepos(data.repositories);
         setTrendingSource(data.cached ? 'local-cache' : data.source === 'remote-server' ? 'remote-server' : 'fresh-scraped');
@@ -65,11 +62,12 @@ export default function ClientHomePage() {
     }
   }, []);
 
-  const loadInitialData = useCallback(async () => {
+  const loadInitialData = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
-      const authRes = await fetch('/api/auth/status');
-      const authData: AuthStatus = await authRes.json();
+      const authRes: Response = await fetch('/api/auth/status');
+      const authData: AuthStatusResponseDto & { statusCode?: number } =
+        (await authRes.json()) as AuthStatusResponseDto & { statusCode?: number };
       setAuthStatus(authData);
 
       if (authData.statusCode === 401) {
@@ -77,11 +75,12 @@ export default function ClientHomePage() {
         setActiveTab('settings');
       }
 
-      const setRes = await fetch('/api/settings');
-      const setData = await setRes.json();
+      const setRes: Response = await fetch('/api/settings');
+      const setData: { settings?: ClientSettingsDto; stats?: LocalStats } =
+        (await setRes.json()) as { settings?: ClientSettingsDto; stats?: LocalStats };
       if (setData.settings) {
         setServerUrl(setData.settings.server_url || 'http://localhost:4000');
-        setServerAuthKey(setData.settings.server_auth_key || '');
+        setServerAuthKey(setData.settings.client_auth_key || '');
       }
       if (setData.stats) {
         setStats(setData.stats);
@@ -90,8 +89,8 @@ export default function ClientHomePage() {
       await loadTrendingData();
 
       try {
-        const aiRes = await fetch('/api/ai/status');
-        const aiData = await aiRes.json();
+        const aiRes: Response = await fetch('/api/ai/status');
+        const aiData: AiStatusResponseDto = (await aiRes.json()) as AiStatusResponseDto;
         if (aiData.config) {
           setAiConfig(aiData.config);
         }
@@ -102,21 +101,22 @@ export default function ClientHomePage() {
         // AI status check ignore
       }
     } catch (err: unknown) {
-      setAuthStatus({ authenticated: false, error: toErrorMessage(err) });
+      setAuthStatus({ configured: false, valid: false, error: toErrorMessage(err) });
     } finally {
       setLoading(false);
     }
   }, [loadTrendingData]);
 
-  useEffect(() => {
+  useEffect((): void => {
     loadInitialData();
   }, [loadInitialData]);
 
-  const handleManualScrape = async () => {
+  const handleManualScrape = async (): Promise<void> => {
     setScraping(true);
     try {
-      const res = await fetch('/api/trending/scrape', { method: 'POST' });
-      const data = await res.json();
+      const res: Response = await fetch('/api/trending/scrape', { method: 'POST' });
+      const data: ScrapeTrendingResponseDto & { syncedWithServer?: boolean } =
+        (await res.json()) as ScrapeTrendingResponseDto & { syncedWithServer?: boolean };
       if (data.repositories) {
         setTrendingRepos(data.repositories);
         setTrendingSource('fresh-scraped');
@@ -129,14 +129,14 @@ export default function ClientHomePage() {
     }
   };
 
-  const handleOpenReadme = async (repo: TrendingRepository) => {
+  const handleOpenReadme = async (repo: TrendingRepository): Promise<void> => {
     setSelectedReadmeRepo(repo);
     setReadmeLoading(true);
     setReadmeContent('');
 
     try {
-      const res = await fetch(`/api/trending?repo=${encodeURIComponent(repo.full_name)}`);
-      const data = await res.json();
+      const res: Response = await fetch(`/api/trending?repo=${encodeURIComponent(repo.full_name)}`);
+      const data: { readme?: string } = (await res.json()) as { readme?: string };
       setReadmeContent(data.readme || repo.readme || 'README를 가져올 수 없습니다.');
     } catch (err: unknown) {
       setReadmeContent(`README 로드 실패: ${toErrorMessage(err)}`);
@@ -153,7 +153,7 @@ export default function ClientHomePage() {
     );
   }
 
-  if (!authStatus?.authenticated) {
+  if (!authStatus?.valid) {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#f6f8fa', padding: '40px 20px' }}>
         <AuthGate onAuthenticated={loadInitialData} />
@@ -164,8 +164,8 @@ export default function ClientHomePage() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f6f8fa' }}>
       <Header
-        username={authStatus.user?.username || 'Client User'}
-        onOpenSettings={() => setActiveTab('settings')}
+        username={authStatus.email || 'Client User'}
+        onOpenSettings={(): void => setActiveTab('settings')}
       />
 
       <main style={{ maxWidth: '1012px', margin: '0 auto', padding: '24px 16px' }}>
@@ -179,7 +179,7 @@ export default function ClientHomePage() {
           }}
         >
           <button
-            onClick={() => setActiveTab('top10')}
+            onClick={(): void => setActiveTab('top10')}
             style={{
               padding: '8px 16px',
               fontSize: '14px',
@@ -194,7 +194,7 @@ export default function ClientHomePage() {
             Daily TOP 10
           </button>
           <button
-            onClick={() => setActiveTab('discussion')}
+            onClick={(): void => setActiveTab('discussion')}
             style={{
               padding: '8px 16px',
               fontSize: '14px',
@@ -209,7 +209,7 @@ export default function ClientHomePage() {
             실시간 토론 세션
           </button>
           <button
-            onClick={() => setActiveTab('archives')}
+            onClick={(): void => setActiveTab('archives')}
             style={{
               padding: '8px 16px',
               fontSize: '14px',
@@ -224,7 +224,7 @@ export default function ClientHomePage() {
             토론 아카이브
           </button>
           <button
-            onClick={() => setActiveTab('settings')}
+            onClick={(): void => setActiveTab('settings')}
             style={{
               padding: '8px 16px',
               fontSize: '14px',
@@ -280,7 +280,7 @@ export default function ClientHomePage() {
         repo={selectedReadmeRepo}
         loading={readmeLoading}
         content={readmeContent}
-        onClose={() => setSelectedReadmeRepo(null)}
+        onClose={(): void => setSelectedReadmeRepo(null)}
       />
     </div>
   );

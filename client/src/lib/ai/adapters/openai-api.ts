@@ -17,11 +17,11 @@ export class OpenAiApiAdapter implements AiProviderAdapter {
   constructor(private readonly config: AiAgentConfig) {}
 
   async execute(prompt: string, context?: string): Promise<AiExecutionResult> {
-    const startTime = Date.now();
-    const model = this.config.model || 'gpt-4o';
+    const startTime: number = Date.now();
+    const model: string = this.config.model || 'gpt-4o';
 
     if (!this.config.apiKey) {
-      return {
+      const result: AiExecutionResult = {
         success: false,
         response: '',
         modelUsed: model,
@@ -29,14 +29,15 @@ export class OpenAiApiAdapter implements AiProviderAdapter {
         latencyMs: Date.now() - startTime,
         error: 'OpenAI API Key가 설정되지 않았습니다.',
       };
+      return result;
     }
 
-    const fullPrompt = context
+    const fullPrompt: string = context
       ? `[Reference Context / README]\n${context}\n\n[Instruction]\n${prompt}`
       : prompt;
 
     try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      const res: Response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -48,27 +49,31 @@ export class OpenAiApiAdapter implements AiProviderAdapter {
         }),
       });
 
-      const data = (await res.json()) as OpenAiChatCompletionResponse;
+      const data: OpenAiChatCompletionResponse = (await res.json()) as OpenAiChatCompletionResponse;
       if (!res.ok) {
         throw new Error(data.error?.message || 'OpenAI API request failed');
       }
 
-      return {
+      const latencyMs: number = Date.now() - startTime;
+      const result: AiExecutionResult = {
         success: true,
         response: data.choices?.[0]?.message?.content || '',
         modelUsed: model,
         providerUsed: 'api-openai',
-        latencyMs: Date.now() - startTime,
+        latencyMs,
       };
+      return result;
     } catch (err: unknown) {
-      return {
+      const latencyMs: number = Date.now() - startTime;
+      const result: AiExecutionResult = {
         success: false,
         response: '',
         modelUsed: model,
         providerUsed: 'api-openai',
-        latencyMs: Date.now() - startTime,
+        latencyMs,
         error: toErrorMessage(err),
       };
+      return result;
     }
   }
 }

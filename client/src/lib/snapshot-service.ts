@@ -1,7 +1,8 @@
+import { Database as DatabaseInstance } from 'better-sqlite3';
 import { getClientDb, getLocalSnapshot, saveLocalSnapshot } from './db';
 import { fetchWithServerAuth, UnauthorizedError } from './server-api';
 import { scrapeGitHubTrending } from './scraper';
-import { LocalSnapshot } from './types';
+import { LocalSnapshot, TrendingRepository } from './types';
 
 export type SnapshotCacheSource = 'local-cache' | 'remote-server' | 'fresh-scraped';
 
@@ -9,6 +10,13 @@ export interface SnapshotFetchResult {
   source: SnapshotCacheSource;
   snapshot: LocalSnapshot;
   syncedWithServer: boolean;
+}
+
+interface RemoteSnapshotResponse {
+  snapshot?: {
+    snapshot_date: string;
+    repositories: TrendingRepository[];
+  };
 }
 
 /**
@@ -21,54 +29,53 @@ export async function getOrFetchDailySnapshot(
   date?: string,
   options: { forceRefresh?: boolean; dbPath?: string } = {}
 ): Promise<SnapshotFetchResult> {
-  const targetDate = date || new Date().toISOString().split('T')[0];
-  const db = getClientDb(options.dbPath);
+  const targetDate: string = date || new Date().toISOString().split('T')[0];
+  const db: DatabaseInstance = getClientDb(options.dbPath);
 
   // 1. Tier 1: Local SQLite Cache
   if (!options.forceRefresh) {
-    const local = getLocalSnapshot(targetDate, db);
+    const local: LocalSnapshot | null = getLocalSnapshot(targetDate, db);
     if (local && local.repositories.length > 0) {
-      return {
+      const hitResult: SnapshotFetchResult = {
         source: 'local-cache',
         snapshot: local,
         syncedWithServer: local.source === 'remote-server',
       };
+      return hitResult;
     }
   }
 
   // 2. Tier 2: Remote Central Server
   try {
-    const res = await fetchWithServerAuth(options.dbPath, `/api/snapshots?date=${targetDate}`, {
+    const res: Response = await fetchWithServerAuth(options.dbPath, `/api/snapshots?date=${targetDate}`, {
       method: 'GET',
     });
 
     if (res.ok) {
-      const data = await res.json();
+      const data: RemoteSnapshotResponse = (await res.json()) as RemoteSnapshotResponse;
       if (data.snapshot && Array.isArray(data.snapshot.repositories) && data.snapshot.repositories.length > 0) {
-        // Cache to local SQLite for future Tier 1 hits
-        const cached = saveLocalSnapshot(targetDate, data.snapshot.repositories, 'remote-server', db);
-        return {
+        const cached: LocalSnapshot = saveLocalSnapshot(targetDate, data.snapshot.repositories, 'remote-server', db);
+        const serverResult: SnapshotFetchResult = {
           source: 'remote-server',
           snapshot: cached,
           syncedWithServer: true,
         };
+        return serverResult;
       }
     }
-  } catch (err) {
-    // If unauthorized, bubble up so caller can redirect to Settings
+  } catch (err: unknown) {
     if (err instanceof UnauthorizedError) {
       throw err;
     }
-    // Network or other server failure: proceed to Tier 3 fallback
   }
 
   // 3. Tier 3: Fresh Local Scrape & Dual-DB Sync
-  const scrapedRepos = await scrapeGitHubTrending({ max: 10 });
-  const localSaved = saveLocalSnapshot(targetDate, scrapedRepos, 'local-scraper', db);
+  const scrapedRepos: TrendingRepository[] = await scrapeGitHubTrending({ max: 10 });
+  const localSaved: LocalSnapshot = saveLocalSnapshot(targetDate, scrapedRepos, 'local-scraper', db);
 
-  let synced = false;
+  let synced: boolean = false;
   try {
-    const syncRes = await fetchWithServerAuth(options.dbPath, '/api/snapshots', {
+    const syncRes: Response = await fetchWithServerAuth(options.dbPath, '/api/snapshots', {
       method: 'POST',
       body: JSON.stringify({
         snapshot_date: targetDate,
@@ -79,12 +86,13 @@ export async function getOrFetchDailySnapshot(
       synced = true;
     }
   } catch {
-    // Sync to remote server failed (e.g. offline), but local data is safely stored in SQLite
+    // Offline fallback
   }
 
-  return {
+  const freshResult: SnapshotFetchResult = {
     source: 'fresh-scraped',
     snapshot: localSaved,
     syncedWithServer: synced,
   };
+  return freshResult;
 }

@@ -15,11 +15,11 @@ export class AnthropicApiAdapter implements AiProviderAdapter {
   constructor(private readonly config: AiAgentConfig) {}
 
   async execute(prompt: string, context?: string): Promise<AiExecutionResult> {
-    const startTime = Date.now();
-    const model = this.config.model || 'claude-3-5-sonnet-20241022';
+    const startTime: number = Date.now();
+    const model: string = this.config.model || 'claude-3-5-sonnet-20241022';
 
     if (!this.config.apiKey) {
-      return {
+      const result: AiExecutionResult = {
         success: false,
         response: '',
         modelUsed: model,
@@ -27,14 +27,15 @@ export class AnthropicApiAdapter implements AiProviderAdapter {
         latencyMs: Date.now() - startTime,
         error: 'Anthropic API Key가 설정되지 않았습니다.',
       };
+      return result;
     }
 
-    const fullPrompt = context
+    const fullPrompt: string = context
       ? `[Reference Context / README]\n${context}\n\n[Instruction]\n${prompt}`
       : prompt;
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res: Response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -48,27 +49,31 @@ export class AnthropicApiAdapter implements AiProviderAdapter {
         }),
       });
 
-      const data = (await res.json()) as AnthropicMessagesResponse;
+      const data: AnthropicMessagesResponse = (await res.json()) as AnthropicMessagesResponse;
       if (!res.ok) {
         throw new Error(data.error?.message || 'Anthropic API request failed');
       }
 
-      return {
+      const latencyMs: number = Date.now() - startTime;
+      const result: AiExecutionResult = {
         success: true,
         response: data.content?.[0]?.text || '',
         modelUsed: model,
         providerUsed: 'api-anthropic',
-        latencyMs: Date.now() - startTime,
+        latencyMs,
       };
+      return result;
     } catch (err: unknown) {
-      return {
+      const latencyMs: number = Date.now() - startTime;
+      const result: AiExecutionResult = {
         success: false,
         response: '',
         modelUsed: model,
         providerUsed: 'api-anthropic',
-        latencyMs: Date.now() - startTime,
+        latencyMs,
         error: toErrorMessage(err),
       };
+      return result;
     }
   }
 }

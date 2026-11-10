@@ -1,4 +1,4 @@
-import Database, { Database as DatabaseInstance } from 'better-sqlite3';
+import Database, { Database as DatabaseInstance, Statement } from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import {
@@ -9,13 +9,49 @@ import {
   LocalArchive,
 } from './types';
 
+interface SettingRow {
+  value: string;
+}
+
+interface SnapshotRow {
+  snapshot_date: string;
+  repositories: string;
+  source: string;
+  created_at: string;
+}
+
+interface SessionRow {
+  id: string;
+  repo_full_name: string;
+  repo_url: string;
+  messages: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ArchiveRow {
+  id: string;
+  user_id: string;
+  snapshot_date: string;
+  repo_full_name: string;
+  repo_url: string;
+  repo_digest: string;
+  discussion_summary: string;
+  messages: string;
+  is_public: number;
+  synced_with_server: number;
+  created_at: string;
+}
+
 let dbInstance: DatabaseInstance | null = null;
 
 export function resetClientDbForTest(): void {
   if (dbInstance) {
     try {
       dbInstance.close();
-    } catch {}
+    } catch {
+      // ignore
+    }
     dbInstance = null;
   }
 }
@@ -25,13 +61,13 @@ export function getClientDb(customPath?: string): DatabaseInstance {
     return dbInstance;
   }
 
-  const defaultDir = path.resolve(process.cwd(), '.data');
+  const defaultDir: string = path.resolve(process.cwd(), '.data');
   if (!fs.existsSync(defaultDir)) {
     fs.mkdirSync(defaultDir, { recursive: true });
   }
 
-  const dbPath = customPath || process.env.DATABASE_PATH || path.join(defaultDir, 'client.db');
-  const db = new Database(dbPath);
+  const dbPath: string = customPath || process.env.DATABASE_PATH || path.join(defaultDir, 'client.db');
+  const db: DatabaseInstance = new Database(dbPath);
 
   // Enable WAL mode for high concurrency & performance
   db.pragma('journal_mode = WAL');
@@ -83,15 +119,15 @@ export function getClientDb(customPath?: string): DatabaseInstance {
 
 // Settings Helpers (Server Auth Key & AI Preferences)
 export function getSetting(key: string, db?: DatabaseInstance): string | null {
-  const d = db || getClientDb();
-  const stmt = d.prepare('SELECT value FROM user_settings WHERE key = ?');
-  const row = stmt.get(key) as { value: string } | undefined;
+  const d: DatabaseInstance = db || getClientDb();
+  const stmt: Statement = d.prepare('SELECT value FROM user_settings WHERE key = ?');
+  const row: SettingRow | undefined = stmt.get(key) as SettingRow | undefined;
   return row ? row.value : null;
 }
 
 export function setSetting(key: string, value: string, db?: DatabaseInstance): void {
-  const d = db || getClientDb();
-  const stmt = d.prepare(`
+  const d: DatabaseInstance = db || getClientDb();
+  const stmt: Statement = d.prepare(`
     INSERT INTO user_settings (key, value, updated_at)
     VALUES (?, ?, ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
@@ -104,22 +140,25 @@ export function getServerAuthKey(db?: DatabaseInstance): string | null {
 }
 
 export function setServerAuthKey(key: string, db?: DatabaseInstance): void {
-  // Sets or updates server authentication key without touching other tables
   setSetting('server_auth_key', key, db);
 }
 
 // Local Snapshot Helpers
 export function getLocalSnapshot(date: string, db?: DatabaseInstance): LocalSnapshot | null {
-  const d = db || getClientDb();
-  const stmt = d.prepare('SELECT * FROM local_snapshots WHERE snapshot_date = ?');
-  const row = stmt.get(date) as { snapshot_date: string; repositories: string; source: string; created_at: string } | undefined;
-  if (!row) return null;
-  return {
+  const d: DatabaseInstance = db || getClientDb();
+  const stmt: Statement = d.prepare('SELECT * FROM local_snapshots WHERE snapshot_date = ?');
+  const row: SnapshotRow | undefined = stmt.get(date) as SnapshotRow | undefined;
+  if (!row) {
+    return null;
+  }
+
+  const snapshot: LocalSnapshot = {
     snapshot_date: row.snapshot_date,
-    repositories: JSON.parse(row.repositories),
+    repositories: JSON.parse(row.repositories) as TrendingRepository[],
     source: row.source as 'local-scraper' | 'remote-server',
     created_at: row.created_at,
   };
+  return snapshot;
 }
 
 export function saveLocalSnapshot(
@@ -128,9 +167,9 @@ export function saveLocalSnapshot(
   source: 'local-scraper' | 'remote-server',
   db?: DatabaseInstance
 ): LocalSnapshot {
-  const d = db || getClientDb();
-  const now = new Date().toISOString();
-  const stmt = d.prepare(`
+  const d: DatabaseInstance = db || getClientDb();
+  const now: string = new Date().toISOString();
+  const stmt: Statement = d.prepare(`
     INSERT INTO local_snapshots (snapshot_date, repositories, source, created_at)
     VALUES (?, ?, ?, ?)
     ON CONFLICT(snapshot_date) DO UPDATE SET
@@ -139,35 +178,40 @@ export function saveLocalSnapshot(
       created_at = excluded.created_at
   `);
   stmt.run(snapshot_date, JSON.stringify(repositories), source, now);
-  return { snapshot_date, repositories, source, created_at: now };
+  const snapshot: LocalSnapshot = { snapshot_date, repositories, source, created_at: now };
+  return snapshot;
 }
 
 // Discussion Session Helpers (Active Chat Workspace)
 export function getDiscussionSession(id: string, db?: DatabaseInstance): DiscussionSession | null {
-  const d = db || getClientDb();
-  const stmt = d.prepare('SELECT * FROM discussion_sessions WHERE id = ?');
-  const row = stmt.get(id) as { id: string; repo_full_name: string; repo_url: string; messages: string; created_at: string; updated_at: string } | undefined;
-  if (!row) return null;
-  return {
+  const d: DatabaseInstance = db || getClientDb();
+  const stmt: Statement = d.prepare('SELECT * FROM discussion_sessions WHERE id = ?');
+  const row: SessionRow | undefined = stmt.get(id) as SessionRow | undefined;
+  if (!row) {
+    return null;
+  }
+
+  const session: DiscussionSession = {
     id: row.id,
     repo_full_name: row.repo_full_name,
     repo_url: row.repo_url,
-    messages: JSON.parse(row.messages),
+    messages: JSON.parse(row.messages) as ChatMessage[],
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
+  return session;
 }
 
 export function saveDiscussionSession(
   session: { id: string; repo_full_name: string; repo_url: string; messages: ChatMessage[] },
   db?: DatabaseInstance
 ): DiscussionSession {
-  const d = db || getClientDb();
-  const now = new Date().toISOString();
-  const existing = getDiscussionSession(session.id, d);
-  const createdAt = existing ? existing.created_at : now;
+  const d: DatabaseInstance = db || getClientDb();
+  const now: string = new Date().toISOString();
+  const existing: DiscussionSession | null = getDiscussionSession(session.id, d);
+  const createdAt: string = existing ? existing.created_at : now;
 
-  const stmt = d.prepare(`
+  const stmt: Statement = d.prepare(`
     INSERT INTO discussion_sessions (id, repo_full_name, repo_url, messages, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
@@ -177,39 +221,32 @@ export function saveDiscussionSession(
       updated_at = excluded.updated_at
   `);
   stmt.run(session.id, session.repo_full_name, session.repo_url, JSON.stringify(session.messages), createdAt, now);
-  return { ...session, created_at: createdAt, updated_at: now };
+  const saved: DiscussionSession = { ...session, created_at: createdAt, updated_at: now };
+  return saved;
 }
 
 // Local Archive Helpers
 export function getLocalArchive(id: string, db?: DatabaseInstance): LocalArchive | null {
-  const d = db || getClientDb();
-  const stmt = d.prepare('SELECT * FROM local_archives WHERE id = ?');
-  const row = stmt.get(id) as {
-    id: string;
-    user_id: string;
-    snapshot_date: string;
-    repo_full_name: string;
-    repo_url: string;
-    repo_digest: string;
-    discussion_summary: string;
-    messages: string;
-    is_public: number;
-    synced_with_server: number;
-    created_at: string;
-  } | undefined;
-  if (!row) return null;
-  return {
+  const d: DatabaseInstance = db || getClientDb();
+  const stmt: Statement = d.prepare('SELECT * FROM local_archives WHERE id = ?');
+  const row: ArchiveRow | undefined = stmt.get(id) as ArchiveRow | undefined;
+  if (!row) {
+    return null;
+  }
+
+  const archive: LocalArchive = {
     ...row,
-    messages: JSON.parse(row.messages),
+    messages: JSON.parse(row.messages) as ChatMessage[],
     is_public: row.is_public === 1,
     synced_with_server: row.synced_with_server === 1,
   };
+  return archive;
 }
 
 export function saveLocalArchive(archive: Omit<LocalArchive, 'created_at'>, db?: DatabaseInstance): LocalArchive {
-  const d = db || getClientDb();
-  const now = new Date().toISOString();
-  const stmt = d.prepare(`
+  const d: DatabaseInstance = db || getClientDb();
+  const now: string = new Date().toISOString();
+  const stmt: Statement = d.prepare(`
     INSERT INTO local_archives (
       id, user_id, snapshot_date, repo_full_name, repo_url, repo_digest,
       discussion_summary, messages, is_public, synced_with_server, created_at
@@ -235,36 +272,29 @@ export function saveLocalArchive(archive: Omit<LocalArchive, 'created_at'>, db?:
     archive.synced_with_server ? 1 : 0,
     now
   );
-  return { ...archive, created_at: now };
+  const saved: LocalArchive = { ...archive, created_at: now };
+  return saved;
 }
 
 export function listLocalArchives(db?: DatabaseInstance): LocalArchive[] {
-  const d = db || getClientDb();
-  const stmt = d.prepare('SELECT * FROM local_archives ORDER BY created_at DESC');
-  const rows = stmt.all() as Array<{
-    id: string;
-    user_id: string;
-    snapshot_date: string;
-    repo_full_name: string;
-    repo_url: string;
-    repo_digest: string;
-    discussion_summary: string;
-    messages: string;
-    is_public: number;
-    synced_with_server: number;
-    created_at: string;
-  }>;
-  return rows.map((r) => ({
+  const d: DatabaseInstance = db || getClientDb();
+  const stmt: Statement = d.prepare('SELECT * FROM local_archives ORDER BY created_at DESC');
+  const rows: ArchiveRow[] = stmt.all() as ArchiveRow[];
+  return rows.map((r: ArchiveRow): LocalArchive => ({
     ...r,
-    messages: JSON.parse(r.messages),
+    messages: JSON.parse(r.messages) as ChatMessage[],
     is_public: r.is_public === 1,
     synced_with_server: r.synced_with_server === 1,
   }));
 }
 
-export function updateLocalArchiveVisibility(id: string, is_public: boolean, db?: DatabaseInstance): LocalArchive | null {
-  const d = db || getClientDb();
-  const stmt = d.prepare('UPDATE local_archives SET is_public = ? WHERE id = ?');
+export function updateLocalArchiveVisibility(
+  id: string,
+  is_public: boolean,
+  db?: DatabaseInstance
+): LocalArchive | null {
+  const d: DatabaseInstance = db || getClientDb();
+  const stmt: Statement = d.prepare('UPDATE local_archives SET is_public = ? WHERE id = ?');
   stmt.run(is_public ? 1 : 0, id);
   return getLocalArchive(id, d);
 }

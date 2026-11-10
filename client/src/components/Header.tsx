@@ -7,11 +7,11 @@ interface HeaderProps {
   onOpenSettings?: () => void;
 }
 
-export default function Header({ username, onOpenSettings }: HeaderProps = {}) {
+export default function Header({ username, onOpenSettings }: HeaderProps = {}): React.JSX.Element {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
-  useEffect(() => {
-    const saved = localStorage.getItem('color-mode') as 'light' | 'dark' | null;
+  useEffect((): void => {
+    const saved: 'light' | 'dark' | null = localStorage.getItem('color-mode') as 'light' | 'dark' | null;
     if (saved) {
       setTheme(saved);
       document.documentElement.setAttribute('data-color-mode', saved);
@@ -20,8 +20,8 @@ export default function Header({ username, onOpenSettings }: HeaderProps = {}) {
     }
   }, []);
 
-  const toggleTheme = () => {
-    const next = theme === 'light' ? 'dark' : 'light';
+  const toggleTheme = (): void => {
+    const next: 'light' | 'dark' = theme === 'light' ? 'dark' : 'light';
     setTheme(next);
     localStorage.setItem('color-mode', next);
     document.documentElement.setAttribute('data-color-mode', next);

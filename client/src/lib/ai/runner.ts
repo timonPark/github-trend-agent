@@ -1,4 +1,5 @@
 import { AiAgentConfig, AiExecutionResult } from './types';
+import { AiProviderAdapter } from './adapter';
 import { createAiAdapter } from './factory';
 
 /**
@@ -10,6 +11,6 @@ export async function executeAiRequest(
   prompt: string,
   context?: string
 ): Promise<AiExecutionResult> {
-  const adapter = createAiAdapter(config);
+  const adapter: AiProviderAdapter = createAiAdapter(config);
   return adapter.execute(prompt, context);
 }

@@ -12,7 +12,7 @@ import { GeminiApiAdapter } from './adapters/gemini-api';
 class UnsupportedAdapter implements AiProviderAdapter {
   constructor(private readonly provider: string) {}
   async execute(): Promise<AiExecutionResult> {
-    return {
+    const result: AiExecutionResult = {
       success: false,
       response: '',
       modelUsed: 'unknown',
@@ -20,6 +20,7 @@ class UnsupportedAdapter implements AiProviderAdapter {
       latencyMs: 0,
       error: `Unsupported provider: ${this.provider}`,
     };
+    return result;
   }
 }
 

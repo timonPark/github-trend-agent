@@ -19,11 +19,11 @@ export class GeminiApiAdapter implements AiProviderAdapter {
   constructor(private readonly config: AiAgentConfig) {}
 
   async execute(prompt: string, context?: string): Promise<AiExecutionResult> {
-    const startTime = Date.now();
-    const model = this.config.model || 'gemini-1.5-pro';
+    const startTime: number = Date.now();
+    const model: string = this.config.model || 'gemini-1.5-pro';
 
     if (!this.config.apiKey) {
-      return {
+      const result: AiExecutionResult = {
         success: false,
         response: '',
         modelUsed: model,
@@ -31,14 +31,15 @@ export class GeminiApiAdapter implements AiProviderAdapter {
         latencyMs: Date.now() - startTime,
         error: 'Google Gemini API Key가 설정되지 않았습니다.',
       };
+      return result;
     }
 
-    const fullPrompt = context
+    const fullPrompt: string = context
       ? `[Reference Context / README]\n${context}\n\n[Instruction]\n${prompt}`
       : prompt;
 
     try {
-      const res = await fetch(
+      const res: Response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.config.apiKey}`,
         {
           method: 'POST',
@@ -49,28 +50,32 @@ export class GeminiApiAdapter implements AiProviderAdapter {
         }
       );
 
-      const data = (await res.json()) as GeminiGenerateResponse;
+      const data: GeminiGenerateResponse = (await res.json()) as GeminiGenerateResponse;
       if (!res.ok) {
         throw new Error(data.error?.message || 'Gemini API request failed');
       }
 
-      const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      return {
+      const responseText: string = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const latencyMs: number = Date.now() - startTime;
+      const result: AiExecutionResult = {
         success: true,
         response: responseText,
         modelUsed: model,
         providerUsed: 'api-gemini',
-        latencyMs: Date.now() - startTime,
+        latencyMs,
       };
+      return result;
     } catch (err: unknown) {
-      return {
+      const latencyMs: number = Date.now() - startTime;
+      const result: AiExecutionResult = {
         success: false,
         response: '',
         modelUsed: model,
         providerUsed: 'api-gemini',
-        latencyMs: Date.now() - startTime,
+        latencyMs,
         error: toErrorMessage(err),
       };
+      return result;
     }
   }
 }

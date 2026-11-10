@@ -17,6 +17,8 @@ export interface ServerDatabase {
   updateArchiveVisibility(id: string, user_id: string, is_public: boolean): Promise<DiscussionArchive | null>;
 }
 
+export type ServerDbAdapter = ServerDatabase;
+
 // In-Memory fallback implementation for tests and local standalone runs
 class MemoryServerDatabase implements ServerDatabase {
   private users: Map<string, User> = new Map();

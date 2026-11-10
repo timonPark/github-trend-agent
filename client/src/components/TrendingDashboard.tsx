@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { TrendingRepository } from '../lib/types';
 
 interface TrendingDashboardProps {
@@ -18,7 +19,7 @@ export function TrendingDashboard({
   scraping,
   onRefresh,
   onOpenReadme,
-}: TrendingDashboardProps) {
+}: TrendingDashboardProps): React.JSX.Element {
   return (
     <div>
       <div
@@ -95,7 +96,7 @@ export function TrendingDashboard({
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {repos.map((repo) => (
+          {repos.map((repo: TrendingRepository): React.JSX.Element => (
             <div
               key={repo.rank}
               style={{
@@ -174,7 +175,7 @@ export function TrendingDashboard({
 
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
-                  onClick={() => onOpenReadme(repo)}
+                  onClick={(): void => onOpenReadme(repo)}
                   style={{
                     padding: '6px 12px',
                     fontSize: '12px',

@@ -1,20 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { toErrorMessage } from '../lib/types/error';
+import { ApiResponse, ClientSettingsDto } from '../lib/types/api';
 
 interface AuthGateProps {
   onAuthenticated: () => void;
 }
 
-export function AuthGate({ onAuthenticated }: AuthGateProps) {
-  const [gateKey, setGateKey] = useState('');
+export function AuthGate({ onAuthenticated }: AuthGateProps): React.JSX.Element {
+  const [gateKey, setGateKey] = useState<string>('');
   const [gateError, setGateError] = useState<string | null>(null);
-  const [gateSubmitting, setGateSubmitting] = useState(false);
+  const [gateSubmitting, setGateSubmitting] = useState<boolean>(false);
 
-  const handleGateSubmit = async (e: React.FormEvent) => {
+  const handleGateSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
-    if (!gateKey.trim()) {
+    const trimmedKey: string = gateKey.trim();
+    if (!trimmedKey) {
       setGateError('Client Auth Key를 입력해주세요.');
       return;
     }
@@ -22,13 +24,13 @@ export function AuthGate({ onAuthenticated }: AuthGateProps) {
     setGateError(null);
 
     try {
-      const res = await fetch('/api/settings', {
+      const res: Response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ server_auth_key: gateKey.trim() }),
+        body: JSON.stringify({ server_auth_key: trimmedKey }),
       });
-      const data = await res.json();
-      if (!res.ok) {
+      const data: ApiResponse<ClientSettingsDto> = (await res.json()) as ApiResponse<ClientSettingsDto>;
+      if (!res.ok || !data.success) {
         throw new Error(data.error || '인증 키 등록에 실패했습니다.');
       }
       onAuthenticated();
@@ -89,7 +91,7 @@ export function AuthGate({ onAuthenticated }: AuthGateProps) {
             id="gateKey"
             type="text"
             value={gateKey}
-            onChange={(e) => setGateKey(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>): void => setGateKey(e.target.value)}
             placeholder="ak_..."
             style={{
               width: '100%',

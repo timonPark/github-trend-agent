@@ -7,14 +7,14 @@ export class OllamaAdapter implements AiProviderAdapter {
   constructor(private readonly config: AiAgentConfig) {}
 
   async execute(prompt: string, context?: string): Promise<AiExecutionResult> {
-    const startTime = Date.now();
-    const fullPrompt = context
+    const startTime: number = Date.now();
+    const fullPrompt: string = context
       ? `[Reference Context / README]\n${context}\n\n[Instruction]\n${prompt}`
       : prompt;
-    const model = this.config.model || 'llama3';
+    const model: string = this.config.model || 'llama3';
 
     try {
-      const res = await fetch('http://localhost:11434/api/generate', {
+      const res: Response = await fetch('http://localhost:11434/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -25,40 +25,46 @@ export class OllamaAdapter implements AiProviderAdapter {
       });
 
       if (res.ok) {
-        const data = (await res.json()) as { response?: string };
-        return {
+        const data: { response?: string } = (await res.json()) as { response?: string };
+        const latencyMs: number = Date.now() - startTime;
+        const result: AiExecutionResult = {
           success: true,
           response: data.response || '',
           modelUsed: model,
           providerUsed: 'cli-ollama',
-          latencyMs: Date.now() - startTime,
+          latencyMs,
         };
+        return result;
       }
       throw new Error(`Ollama returned status ${res.status}`);
     } catch {
       // Subprocess fallback
       try {
-        const output = await runSubprocessCli(
+        const output: string = await runSubprocessCli(
           this.config.cliPath || 'ollama',
           ['run', model, fullPrompt],
           ''
         );
-        return {
+        const latencyMs: number = Date.now() - startTime;
+        const result: AiExecutionResult = {
           success: true,
           response: output,
           modelUsed: model,
           providerUsed: 'cli-ollama',
-          latencyMs: Date.now() - startTime,
+          latencyMs,
         };
+        return result;
       } catch (err: unknown) {
-        return {
+        const latencyMs: number = Date.now() - startTime;
+        const result: AiExecutionResult = {
           success: false,
           response: '',
           modelUsed: model,
           providerUsed: 'cli-ollama',
-          latencyMs: Date.now() - startTime,
+          latencyMs,
           error: `Ollama execution failed: ${toErrorMessage(err)}`,
         };
+        return result;
       }
     }
   }

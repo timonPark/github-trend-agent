@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { AiAgentConfig, DetectedCli } from '../lib/ai/types';
 import { toErrorMessage } from '../lib/types/error';
+import { ApiResponse, ClientSettingsDto, AiTestResponseDto } from '../lib/types/api';
 
 interface LocalStats {
   snapshotCount: number;
@@ -28,12 +29,12 @@ export function SettingsTab({
   aiConfig: initialAiConfig,
   detectedClis,
   onSettingsSaved,
-}: SettingsTabProps) {
+}: SettingsTabProps): React.JSX.Element {
   // Server Settings Form State
-  const [serverUrl, setServerUrl] = useState(initialServerUrl);
-  const [serverAuthKey, setServerAuthKey] = useState(initialServerAuthKey);
-  const [showKey, setShowKey] = useState(false);
-  const [savingSettings, setSavingSettings] = useState(false);
+  const [serverUrl, setServerUrl] = useState<string>(initialServerUrl);
+  const [serverAuthKey, setServerAuthKey] = useState<string>(initialServerAuthKey);
+  const [showKey, setShowKey] = useState<boolean>(false);
+  const [savingSettings, setSavingSettings] = useState<boolean>(false);
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
 
@@ -41,19 +42,19 @@ export function SettingsTab({
   const [aiProvider, setAiProvider] = useState<AiAgentConfig['provider']>(initialAiConfig.provider);
   const [aiModel, setAiModel] = useState<string>(initialAiConfig.model || 'default');
   const [aiApiKey, setAiApiKey] = useState<string>(initialAiConfig.apiKey || '');
-  const [aiSaving, setAiSaving] = useState(false);
-  const [aiTesting, setAiTesting] = useState(false);
+  const [aiSaving, setAiSaving] = useState<boolean>(false);
+  const [aiTesting, setAiTesting] = useState<boolean>(false);
   const [aiMessage, setAiMessage] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
 
-  const handleSaveServerSettings = async (e: React.FormEvent) => {
+  const handleSaveServerSettings = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     setSavingSettings(true);
     setSettingsSuccess(null);
     setSettingsError(null);
 
     try {
-      const res = await fetch('/api/settings', {
+      const res: Response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -61,8 +62,8 @@ export function SettingsTab({
           server_auth_key: serverAuthKey.trim(),
         }),
       });
-      const data = await res.json();
-      if (!res.ok) {
+      const data: ApiResponse<ClientSettingsDto> = (await res.json()) as ApiResponse<ClientSettingsDto>;
+      if (!res.ok || !data.success) {
         throw new Error(data.error || '설정 저장에 실패했습니다.');
       }
       setSettingsSuccess('중앙 서버 설정이 성공적으로 저장 및 검증되었습니다.');
@@ -74,14 +75,14 @@ export function SettingsTab({
     }
   };
 
-  const handleSaveAiSettings = async (e: React.FormEvent) => {
+  const handleSaveAiSettings = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     setAiSaving(true);
     setAiMessage(null);
     setAiError(null);
 
     try {
-      const res = await fetch('/api/settings', {
+      const res: Response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -90,8 +91,8 @@ export function SettingsTab({
           ai_api_key: aiApiKey.trim(),
         }),
       });
-      const data = await res.json();
-      if (!res.ok) {
+      const data: ApiResponse<ClientSettingsDto> = (await res.json()) as ApiResponse<ClientSettingsDto>;
+      if (!res.ok || !data.success) {
         throw new Error(data.error || 'AI 설정 저장에 실패했습니다.');
       }
       setAiMessage('AI Agent 설정이 저장되었습니다.');
@@ -103,13 +104,13 @@ export function SettingsTab({
     }
   };
 
-  const handleTestAi = async () => {
+  const handleTestAi = async (): Promise<void> => {
     setAiTesting(true);
     setAiMessage(null);
     setAiError(null);
 
     try {
-      const res = await fetch('/api/ai/test', {
+      const res: Response = await fetch('/api/ai/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -118,7 +119,7 @@ export function SettingsTab({
           apiKey: aiApiKey.trim(),
         }),
       });
-      const data = await res.json();
+      const data: AiTestResponseDto = (await res.json()) as AiTestResponseDto;
       if (!data.success) {
         throw new Error(data.error || 'AI 연결 테스트 실패');
       }
@@ -201,7 +202,7 @@ export function SettingsTab({
             <input
               type="text"
               value={serverUrl}
-              onChange={(e) => setServerUrl(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>): void => setServerUrl(e.target.value)}
               style={{
                 width: '100%',
                 padding: '8px 12px',
@@ -221,7 +222,7 @@ export function SettingsTab({
               <input
                 type={showKey ? 'text' : 'password'}
                 value={serverAuthKey}
-                onChange={(e) => setServerAuthKey(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>): void => setServerAuthKey(e.target.value)}
                 style={{
                   flex: 1,
                   padding: '8px 12px',
@@ -233,7 +234,7 @@ export function SettingsTab({
               />
               <button
                 type="button"
-                onClick={() => setShowKey(!showKey)}
+                onClick={(): void => setShowKey(!showKey)}
                 style={{
                   padding: '8px 14px',
                   fontSize: '12px',
@@ -324,7 +325,7 @@ export function SettingsTab({
             감지된 로컬 AI 도구 상태:
           </span>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {detectedClis.map((cli) => (
+            {detectedClis.map((cli: DetectedCli): React.JSX.Element => (
               <span
                 key={cli.id}
                 style={{
@@ -354,7 +355,9 @@ export function SettingsTab({
             </label>
             <select
               value={aiProvider}
-              onChange={(e) => setAiProvider(e.target.value as AiAgentConfig['provider'])}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>): void =>
+                setAiProvider(e.target.value as AiAgentConfig['provider'])
+              }
               style={{
                 width: '100%',
                 padding: '8px 12px',
@@ -382,7 +385,7 @@ export function SettingsTab({
             <input
               type="text"
               value={aiModel}
-              onChange={(e) => setAiModel(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>): void => setAiModel(e.target.value)}
               placeholder="gpt-4o, claude-3-5-sonnet, llama3 등"
               style={{
                 width: '100%',
@@ -403,7 +406,7 @@ export function SettingsTab({
               <input
                 type="password"
                 value={aiApiKey}
-                onChange={(e) => setAiApiKey(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>): void => setAiApiKey(e.target.value)}
                 placeholder="sk-..."
                 style={{
                   width: '100%',

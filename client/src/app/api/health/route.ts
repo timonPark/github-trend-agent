@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server';
 
-export async function GET() {
-  return NextResponse.json({
+interface ClientHealthResponse {
+  status: string;
+  service: string;
+  designSystem: string;
+  timestamp: string;
+}
+
+export async function GET(): Promise<NextResponse<ClientHealthResponse>> {
+  return NextResponse.json<ClientHealthResponse>({
     status: 'ok',
     service: 'github-trend-agent-client',
     designSystem: '@primer/primitives',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 }

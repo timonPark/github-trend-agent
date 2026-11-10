@@ -23,8 +23,16 @@
 
 ### 3. 엄격한 TypeScript 타입 시스템
 - **`any` 타입 전면 금지**: `any` 키워드 사용을 일절 금지하며, 변수·함수 파라미터·반환값에 명시적 타입을 부여합니다.
+- **모든 변수에 명시적 타입 선언 필수**:
+  - `const`, `let` 선언 시 타입 추론에 의존하지 않고 명시적 타입 표기 (예: `const count: number = 0;`, `const res: Response = await fetch(...)`).
+  - React `useState` 사용 시 제네릭 타입 표기 필수 (예: `useState<boolean>(false)`, `useState<string>('')`).
+- **모든 함수에 명시적 반환 타입(Explicit Return Type) 선언 필수**:
+  - 컴포넌트: `export default function Component(): React.JSX.Element`
+  - 비동기 핸들러: `const handleSubmit = async (e: React.FormEvent): Promise<void> =>`
+  - Next.js API Route: `export async function GET(req: Request): Promise<NextResponse<ApiResponse<T>>>`
+  - 유틸리티/헬퍼: 일반 함수 및 화살표 함수 모두 반환 타입 누락 금지.
 - **API Request/Response DTO 체계화**: 클라이언트-서버 간 주고받는 모든 데이터는 `ApiResponse<T>`, `VerifyKeyRequestDto`, `AiTestResponseDto` 등 명시적인 DTO 인터페이스를 선언하여 타입 검증을 거칩니다.
-- **예외 처리 표준**: `catch (err: any)`를 금지하고 `catch (err: unknown)`을 사용하며, 타입 가드(`instanceof Error` 또는 에러 파서 헬퍼)를 통해 안전하게 메시지를 추출합니다.
+- **예외 처리 표준**: `catch (err: any)`를 금지하고 `catch (err: unknown)`을 사용하며, 타입 가드(`instanceof Error` 또는 에러 파서 헬퍼 `toErrorMessage`)를 통해 안전하게 메시지를 추출합니다.
 - **느슨한 타입 지양**: 단순 `string` 대신 Union Literal(`'claude' | 'gemini' | 'ollama' | 'mock'`) 또는 Enum을 사용하여 유효한 값의 범위를 컴파일 타임에 제한합니다.
 
 ### 4. 단일 책임 원칙 (SRP) 및 모듈화 / 아키텍처

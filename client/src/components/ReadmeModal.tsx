@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { TrendingRepository } from '../lib/types';
 
 interface ReadmeModalProps {
@@ -9,8 +10,10 @@ interface ReadmeModalProps {
   onClose: () => void;
 }
 
-export function ReadmeModal({ repo, loading, content, onClose }: ReadmeModalProps) {
-  if (!repo) return null;
+export function ReadmeModal({ repo, loading, content, onClose }: ReadmeModalProps): React.JSX.Element | null {
+  if (!repo) {
+    return null;
+  }
 
   return (
     <div
@@ -41,7 +44,7 @@ export function ReadmeModal({ repo, loading, content, onClose }: ReadmeModalProp
           boxShadow: '0 8px 24px rgba(140, 149, 159, 0.3)',
           overflow: 'hidden',
         }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e: React.MouseEvent<HTMLDivElement>): void => e.stopPropagation()}
       >
         <div
           style={{
