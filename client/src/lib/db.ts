@@ -11,6 +11,15 @@ import {
 
 let dbInstance: DatabaseInstance | null = null;
 
+export function resetClientDbForTest(): void {
+  if (dbInstance) {
+    try {
+      dbInstance.close();
+    } catch {}
+    dbInstance = null;
+  }
+}
+
 export function getClientDb(customPath?: string): DatabaseInstance {
   if (dbInstance && !customPath) {
     return dbInstance;

@@ -4,6 +4,7 @@ import crypto from 'crypto';
 
 export interface ServerDatabase {
   createUser(username: string, password_hash: string, client_auth_key?: string): Promise<User>;
+  findUserById(id: string): Promise<User | null>;
   findUserByUsername(username: string): Promise<User | null>;
   findUserByClientAuthKey(client_auth_key: string): Promise<User | null>;
   rotateClientAuthKey(user_id: string): Promise<string>;
@@ -37,6 +38,10 @@ class MemoryServerDatabase implements ServerDatabase {
     };
     this.users.set(user.id, user);
     return user;
+  }
+
+  async findUserById(id: string): Promise<User | null> {
+    return this.users.get(id) || null;
   }
 
   async findUserByUsername(username: string): Promise<User | null> {
@@ -136,6 +141,16 @@ class SupabaseServerDatabase implements ServerDatabase {
       .single();
     if (error) throw new Error(error.message);
     return data as User;
+  }
+
+  async findUserById(id: string): Promise<User | null> {
+    const { data, error } = await this.client
+      .from('users')
+      .select()
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data as User | null;
   }
 
   async findUserByUsername(username: string): Promise<User | null> {
