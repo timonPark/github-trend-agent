@@ -15,6 +15,8 @@ import {
   TrendingResponseDto,
   ScrapeTrendingResponseDto,
   AiStatusResponseDto,
+  GenerateDigestResponseDto,
+  ApiResponse,
 } from '../lib/types/api';
 
 interface LocalStats {
@@ -46,6 +48,7 @@ export default function ClientHomePage(): React.JSX.Element {
   const [selectedReadmeRepo, setSelectedReadmeRepo] = useState<TrendingRepository | null>(null);
   const [readmeLoading, setReadmeLoading] = useState<boolean>(false);
   const [readmeContent, setReadmeContent] = useState<string>('');
+  const [generatingDigestRepo, setGeneratingDigestRepo] = useState<string | null>(null);
 
   const loadTrendingData = useCallback(async (): Promise<void> => {
     try {
@@ -143,6 +146,57 @@ export default function ClientHomePage(): React.JSX.Element {
     } finally {
       setReadmeLoading(false);
     }
+  };
+
+  const requestDigestApi = async (repoFullName: string): Promise<string> => {
+    const today: string = new Date().toISOString().split('T')[0];
+    const res: Response = await fetch('/api/digest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ snapshot_date: today, repo_full_name: repoFullName }),
+    });
+    const data: ApiResponse<GenerateDigestResponseDto> =
+      (await res.json()) as ApiResponse<GenerateDigestResponseDto>;
+    if (!res.ok || !data.success || !data.data) {
+      throw new Error(data.error || '요약 생성 실패');
+    }
+    return data.data.digest;
+  };
+
+  const applyDigestUpdate = (repoFullName: string, digest: string): void => {
+    setTrendingRepos((prev: TrendingRepository[]): TrendingRepository[] =>
+      prev.map((r: TrendingRepository): TrendingRepository =>
+        r.full_name === repoFullName ? { ...r, digest } : r
+      )
+    );
+  };
+
+  const handleGenerateDigest = async (repo: TrendingRepository): Promise<void> => {
+    if (aiConfig.provider === 'none') {
+      alert('AI 에이전트가 연동되지 않았습니다. 설정 탭에서 모델 또는 API Key를 설정해주세요.');
+      setActiveTab('settings');
+      return;
+    }
+
+    setGeneratingDigestRepo(repo.full_name);
+    try {
+      const digest: string = await requestDigestApi(repo.full_name);
+      applyDigestUpdate(repo.full_name, digest);
+    } catch (err: unknown) {
+      alert(`요약 생성 실패: ${toErrorMessage(err)}`);
+    } finally {
+      setGeneratingDigestRepo(null);
+    }
+  };
+
+  const handleStartDiscussion = (repo: TrendingRepository): void => {
+    if (aiConfig.provider === 'none') {
+      alert('AI 에이전트가 연동되지 않았습니다. 설정 탭에서 모델 또는 API Key를 설정해주세요.');
+      setActiveTab('settings');
+      return;
+    }
+    // Set active tab to discussion workspace for the selected repo
+    setActiveTab('discussion');
   };
 
   if (loading) {
@@ -246,8 +300,12 @@ export default function ClientHomePage(): React.JSX.Element {
             source={trendingSource}
             syncedWithServer={syncedWithServer}
             scraping={scraping}
+            aiGated={aiConfig.provider === 'none'}
+            generatingDigestRepo={generatingDigestRepo}
             onRefresh={handleManualScrape}
             onOpenReadme={handleOpenReadme}
+            onGenerateDigest={handleGenerateDigest}
+            onStartDiscussion={handleStartDiscussion}
           />
         )}
 

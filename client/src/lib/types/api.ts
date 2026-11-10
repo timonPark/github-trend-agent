@@ -51,6 +51,26 @@ export interface AiTestRequestDto {
 
 export type AiTestResponseDto = AiExecutionResult;
 
+export interface CapabilityGateStatusDto {
+  enabled: boolean;
+  provider: AiAgentConfig['provider'];
+  reason?: string;
+}
+
+export interface GenerateDigestRequestDto {
+  snapshot_date: string;
+  repo_full_name: string;
+}
+
+export interface GenerateDigestResponseDto {
+  snapshot_date: string;
+  repo_full_name: string;
+  digest: string;
+  provider: AiAgentConfig['provider'];
+  model: string;
+  synced_with_server: boolean;
+}
+
 /**
  * Trending & Snapshot DTOs
  */
