@@ -79,6 +79,10 @@ Behavioral guidelines and workflow rules for `github-trend-agent`.
 
 이슈는 이 레포의 GitHub Issues(`timonPark/github-trend-agent`)에서 추적됩니다. `docs/agents/issue-tracker.md` 참조.
 
+### Triage labels
+
+기본 5개 분류 레이블(`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`)을 사용합니다. `docs/agents/triage-labels.md` 참조.
+
 ### Domain docs
 
 단일 컨텍스트(루트 `GLOSSARY.md` + `docs/adr/`). `docs/agents/domain.md` 참조.
