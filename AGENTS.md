@@ -53,6 +53,7 @@ Behavioral guidelines and workflow rules for `github-trend-agent`.
    - 작업이 완료되면 문서 내 **최종 완료일시**를 기록하고 **상태를 `완료`로 변경**합니다.
 4. **PR 생성 및 사용자 승인 게이트**:
    - 작업이 완료되면 `commit → push → PR 생성`까지 진행합니다.
+   - 모든 커밋 메시지 하단에는 공동 작성자 트레일러(`Co-Authored-By: Gemini <176961590+gemini-code-assist[bot]@users.noreply.github.com>`)를 포함합니다.
    - **PR 머지는 반드시 사용자의 명시적인 승인을 받은 후에만 수행합니다.** (임의 자동 머지 금지)
 5. **머지 후 최종 정리 (Post-Merge Cleanup)**:
    - 사용자의 승인을 받아 PR이 머지되면:
