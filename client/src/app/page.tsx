@@ -148,6 +148,29 @@ export default function ClientHomePage(): React.JSX.Element {
     }
   };
 
+  const requestDigestApi = async (repoFullName: string): Promise<string> => {
+    const today: string = new Date().toISOString().split('T')[0];
+    const res: Response = await fetch('/api/digest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ snapshot_date: today, repo_full_name: repoFullName }),
+    });
+    const data: ApiResponse<GenerateDigestResponseDto> =
+      (await res.json()) as ApiResponse<GenerateDigestResponseDto>;
+    if (!res.ok || !data.success || !data.data) {
+      throw new Error(data.error || '요약 생성 실패');
+    }
+    return data.data.digest;
+  };
+
+  const applyDigestUpdate = (repoFullName: string, digest: string): void => {
+    setTrendingRepos((prev: TrendingRepository[]): TrendingRepository[] =>
+      prev.map((r: TrendingRepository): TrendingRepository =>
+        r.full_name === repoFullName ? { ...r, digest } : r
+      )
+    );
+  };
+
   const handleGenerateDigest = async (repo: TrendingRepository): Promise<void> => {
     if (aiConfig.provider === 'none') {
       alert('AI 에이전트가 연동되지 않았습니다. 설정 탭에서 모델 또는 API Key를 설정해주세요.');
@@ -157,32 +180,8 @@ export default function ClientHomePage(): React.JSX.Element {
 
     setGeneratingDigestRepo(repo.full_name);
     try {
-      const today: string = new Date().toISOString().split('T')[0];
-      const res: Response = await fetch('/api/digest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          snapshot_date: today,
-          repo_full_name: repo.full_name,
-        }),
-      });
-
-      const data: ApiResponse<GenerateDigestResponseDto> =
-        (await res.json()) as ApiResponse<GenerateDigestResponseDto>;
-
-      if (!res.ok || !data.success || !data.data) {
-        throw new Error(data.error || '요약 생성 실패');
-      }
-
-      const generatedDigest: string = data.data.digest;
-      setTrendingRepos((prev: TrendingRepository[]): TrendingRepository[] =>
-        prev.map((r: TrendingRepository): TrendingRepository => {
-          if (r.full_name === repo.full_name) {
-            return { ...r, digest: generatedDigest };
-          }
-          return r;
-        })
-      );
+      const digest: string = await requestDigestApi(repo.full_name);
+      applyDigestUpdate(repo.full_name, digest);
     } catch (err: unknown) {
       alert(`요약 생성 실패: ${toErrorMessage(err)}`);
     } finally {

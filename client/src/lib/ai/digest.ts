@@ -5,6 +5,14 @@ import { CapabilityGateStatusDto } from '../types/api';
 import { executeAiRequest } from './runner';
 import { getSetting } from '../db';
 
+function isDirectApiProvider(provider: AiAgentConfig['provider']): boolean {
+  return provider === 'api-openai' || provider === 'api-anthropic' || provider === 'api-gemini';
+}
+
+function hasMissingApiKey(config: AiAgentConfig): boolean {
+  return isDirectApiProvider(config.provider) && (!config.apiKey || config.apiKey.trim().length === 0);
+}
+
 /**
  * Checks whether the AI agent is configured and capable of running tasks.
  */
@@ -17,12 +25,7 @@ export function checkAiCapability(config: AiAgentConfig): CapabilityGateStatusDt
     };
   }
 
-  if (
-    (config.provider === 'api-openai' ||
-      config.provider === 'api-anthropic' ||
-      config.provider === 'api-gemini') &&
-    (!config.apiKey || config.apiKey.trim().length === 0)
-  ) {
+  if (hasMissingApiKey(config)) {
     return {
       enabled: false,
       provider: config.provider,
@@ -30,17 +33,11 @@ export function checkAiCapability(config: AiAgentConfig): CapabilityGateStatusDt
     };
   }
 
-  return {
-    enabled: true,
-    provider: config.provider,
-  };
+  return { enabled: true, provider: config.provider };
 }
 
-/**
- * Builds a prompt for generating a 3-line Repository Digest.
- */
-export function buildDigestPrompt(repo: TrendingRepository): string {
-  const parts: string[] = [
+function formatRepoMetadata(repo: TrendingRepository): string[] {
+  return [
     `당신은 오픈소스 소프트웨어 전문 기술 분석가입니다.`,
     `아래 GitHub 저장소의 메타데이터와 README 내용을 바탕으로, 개발자들이 핵심 가치를 즉시 파악할 수 있도록 정확히 3줄로 핵심 요약(Repository Digest)을 한국어로 작성해주세요.`,
     ``,
@@ -51,23 +48,35 @@ export function buildDigestPrompt(repo: TrendingRepository): string {
     `- 전체 스타 수: ${repo.total_stars.toLocaleString()}`,
     `- 당일 급상승 스타 수: +${repo.daily_stars.toLocaleString()}`,
   ];
+}
 
-  if (repo.readme && repo.readme.trim().length > 0) {
-    const truncatedReadme: string =
-      repo.readme.length > 3000 ? repo.readme.slice(0, 3000) + '\n...(이하 생략)' : repo.readme;
-    parts.push(``, `[README 본문]`, truncatedReadme);
+function formatReadmeSnippet(readme?: string): string[] {
+  if (!readme || readme.trim().length === 0) {
+    return [];
   }
+  const snippet: string = readme.length > 3000 ? readme.slice(0, 3000) + '\n...(이하 생략)' : readme;
+  return [``, `[README 본문]`, snippet];
+}
 
-  parts.push(
+function formatPromptRules(): string[] {
+  return [
     ``,
     `[작성 규칙]`,
     `1. 반드시 아래 3개 항목에 맞추어 정확히 3줄로 작성하십시오. 불필요한 서론이나 결론 문구는 생략하십시오.`,
     `   - 목적: (이 프로젝트가 해결하고자 하는 핵심 문제 및 존재 목적)`,
     `   - 주요 기능: (가장 핵심적인 기술적 기능 2~3가지)`,
-    `   - 기술적 가치: (기존 대안 대비 차별점 또는 개발 생태계에 주는 시사점)`
-  );
+    `   - 기술적 가치: (기존 대안 대비 차별점 또는 개발 생태계에 주는 시사점)`,
+  ];
+}
 
-  return parts.join('\n');
+/**
+ * Builds a prompt for generating a 3-line Repository Digest.
+ */
+export function buildDigestPrompt(repo: TrendingRepository): string {
+  const meta: string[] = formatRepoMetadata(repo);
+  const readme: string[] = formatReadmeSnippet(repo.readme);
+  const rules: string[] = formatPromptRules();
+  return [...meta, ...readme, ...rules].join('\n');
 }
 
 /**
@@ -84,7 +93,6 @@ export async function generateRepoDigest(
 
   const prompt: string = buildDigestPrompt(repo);
   const result: AiExecutionResult = await executeAiRequest(config, prompt, repo.readme);
-
   if (!result.success) {
     throw new Error(result.error || 'Failed to generate repository digest');
   }
@@ -96,6 +104,30 @@ export async function generateRepoDigest(
   };
 }
 
+function getServerSyncConfig(db?: DatabaseInstance): { serverUrl: string; serverAuthKey: string | null } {
+  const serverUrl: string = getSetting('server_url', db) || process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:4000';
+  const serverAuthKey: string | null = getSetting('server_auth_key', db);
+  return { serverUrl, serverAuthKey };
+}
+
+async function sendSnapshotToRemote(
+  serverUrl: string,
+  authKey: string,
+  snapshot_date: string,
+  repositories: TrendingRepository[]
+): Promise<boolean> {
+  try {
+    const res: Response = await fetch(`${serverUrl}/api/snapshots`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authKey}` },
+      body: JSON.stringify({ snapshot_date, repositories }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Synchronizes updated snapshot repositories with the central server if configured.
  */
@@ -104,28 +136,9 @@ export async function syncSnapshotToServer(
   repositories: TrendingRepository[],
   db?: DatabaseInstance
 ): Promise<boolean> {
-  const serverUrl: string = getSetting('server_url', db) || process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:4000';
-  const serverAuthKey: string | null = getSetting('server_auth_key', db);
-
+  const { serverUrl, serverAuthKey } = getServerSyncConfig(db);
   if (!serverAuthKey || serverAuthKey.trim().length === 0) {
     return false;
   }
-
-  try {
-    const res: Response = await fetch(`${serverUrl}/api/snapshots`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${serverAuthKey}`,
-      },
-      body: JSON.stringify({
-        snapshot_date,
-        repositories,
-      }),
-    });
-
-    return res.ok;
-  } catch {
-    return false;
-  }
+  return sendSnapshotToRemote(serverUrl, serverAuthKey, snapshot_date, repositories);
 }

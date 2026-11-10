@@ -3,8 +3,8 @@
 - **이슈 링크**: https://github.com/timonPark/github-trend-agent/issues/8
 - **에픽**: [Epic 3] 사용자별 Local AI Agent 연동 및 미연동 기능 제한(Capability Gating) (#14)
 - **브랜치**: `8-ai-capability-gating-and-digest`
-- **상태**: 완료 (PR 승인 대기)
-- **완료 일시**: 2026-11-11 08:07 (KST)
+- **상태**: 완료 (PR #31 승인 대기)
+- **완료 일시**: 2026-11-11 08:18 (KST)
 
 ---
 
@@ -28,24 +28,15 @@
 
 ---
 
-## 2. TDD 4단계 완료 내역
-- **Step 1 (Seam / Types)**:
-  - `client/src/lib/types/api.ts`에 `CapabilityGateStatusDto`, `GenerateDigestRequestDto`, `GenerateDigestResponseDto` 정의
-  - `client/src/lib/db.ts`에 `updateLocalRepoDigest` 함수 구현
-- **Step 2 (Red)**:
-  - `client/test/digest.test.ts` 작성 (총 10개 테스트 케이스: Capability Gating, 프롬프트 빌더, DB 갱신, API Route 403/400/404/200 응답)
-  - 구현 전 테스트 실행으로 Red 상태 확인
-- **Step 3 (Green)**:
-  - `client/src/lib/ai/digest.ts` 구현 (`checkAiCapability`, `buildDigestPrompt`, `generateRepoDigest`, `syncSnapshotToServer`)
-  - `client/src/app/api/digest/route.ts` 구현
-  - `client/src/components/TrendingRepoCard.tsx` 생성 (SRP 및 150줄 이내 컴포넌트 분해)
-  - `client/src/components/TrendingDashboard.tsx` 리팩토링 (139줄)
-  - `client/src/app/page.tsx`에 `handleGenerateDigest` 및 `aiGated` 연동
-  - `client/test/digest.test.ts` 10개 테스트 및 전체 테스트 64개 100% Green 통과
-- **Step 4 (Refactor & 100% 명시적 타이핑)**:
-  - 전수 타입 및 반환 타입 명시 확인 (`any` 없음)
-  - 컴포넌트 150줄 이내(Card: 144줄, Dashboard: 139줄) 분해 유지
-  - 프로덕션 빌드 `npm run build` (서버/클라이언트 모두 번들링 성공)
+## 2. 헌법 개정 및 전수 20줄 이내 리팩토링
+- **`AGENTS.md` 규정 강화**:
+  - 함수 비대화 금지 기준을 기존 50줄에서 **최대 20줄 이내**로 대폭 강화
+  - **제5원칙: 지속적인 리팩토링 및 기술 부채 즉시 청산 원칙 ("나중에 리팩토링" 전면 금지, 보이스카우트 규칙)** 신설
+- **신규 및 수정 코드 전수 20줄 이내 분해 (Extract Function)**:
+  - `client/src/app/api/digest/route.ts`: 93줄 몬스터 `POST` 함수를 `validatePayload`(6줄), `verifyAiCapability`(7줄), `findRepoInSnapshot`(13줄), `saveDigestAndSync`(9줄), `createErrorResponse`(5줄), `POST`(19줄)로 전수 분해
+  - `client/src/lib/ai/digest.ts`: `checkAiCapability`(17줄), `formatRepoMetadata`(13줄), `formatReadmeSnippet`(7줄), `formatPromptRules`(10줄), `buildDigestPrompt`(6줄), `generateRepoDigest`(17줄), `sendSnapshotToRemote`(12줄), `syncSnapshotToServer`(7줄)로 분해
+  - `client/src/components/TrendingRepoCard.tsx`: 단일 144줄 렌더러를 `RepoHeader`(36줄), `ActionButtons`(40줄), `DigestBox`(18줄), `TrendingRepoCard`(24줄) 서브 컴포넌트로 분해
+  - `client/src/app/page.tsx`: 53줄 `handleGenerateDigest`를 `requestDigestApi`(13줄), `applyDigestUpdate`(7줄), `handleGenerateDigest`(17줄)로 분해
 
 ---
 
