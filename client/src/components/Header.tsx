@@ -2,7 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 
-export default function Header() {
+interface HeaderProps {
+  username?: string;
+  onOpenSettings?: () => void;
+}
+
+export default function Header({ username, onOpenSettings }: HeaderProps = {}) {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
@@ -51,10 +56,26 @@ export default function Header() {
 
         {/* Right Actions */}
         <div className="flex items-center gap-3">
+          {username && (
+            <span className="text-xs font-semibold text-[var(--fgColor-default)]">
+              👤 {username}
+            </span>
+          )}
           <div className="flex items-center gap-2 text-xs text-[var(--fgColor-muted)]">
             <span className="inline-block h-2 w-2 rounded-full bg-[var(--fgColor-success)]"></span>
             <span>Local DB Ready</span>
           </div>
+
+          {onOpenSettings && (
+            <button
+              onClick={onOpenSettings}
+              className="primer-btn"
+              title="설정"
+              aria-label="Settings"
+            >
+              ⚙️
+            </button>
+          )}
 
           <button
             onClick={toggleTheme}
