@@ -1,6 +1,6 @@
 # GitHub Trend Agent
 
-일일 GitHub 트렌딩 저장소를 탐색하고, AI 에이전트와의 토론을 통해 도출된 인사이트를 개인화하여 아카이빙하는 시스템.
+일일 GitHub 트렌딩 저장소를 탐색하고, AI 에이전트와의 토론을 통해 도출된 인사이트를 개인화하여 아카이빙·공유하는 시스템.
 
 ## Language
 
@@ -17,15 +17,23 @@ _Avoid_: Star Project, Git Ranking, Top Repo
 _Avoid_: Repo Brief, Overview, Repo Summary
 
 **Discussion Session**:
-웹 화면에서 특정 Trending Repository를 주제로 사용자와 Local AI Agent가 실시간으로 대화를 주고받는 채팅 세션.
+클라이언트 웹 화면에서 특정 Trending Repository를 주제로 사용자와 Local AI Agent가 실시간으로 대화를 주고받는 채팅 세션.
 _Avoid_: Prompt Run, Single Query
 
 **Discussion Archive**:
-Discussion Session을 통해 도출된 결론 및 인사이트를 Repository Digest와 결합하여 영구 보존하는 통합 기록물.
+Discussion Session을 통해 도출된 결론 및 인사이트를 Repository Digest, 전체 대화 전문, 공개 여부(`is_public`)와 결합하여 로컬 및 중앙 서버에 영구 보존하는 통합 기록물.
 _Avoid_: History, Log, Saved Note
 
+**Snapshot Explorer**:
+중앙 서버 웹 포털에서 날짜(`YYYY-MM-DD`)별로 축적된 Daily Trending Snapshot과 Repository Digest를 누구나 열람할 수 있는 공개 탐색 화면.
+_Avoid_: Repo History Page, Old List
+
+**Public Discussion Feed**:
+사용자들이 공개(`is_public: true`)로 설정해 중앙 서버에 동기화한 Discussion Archive를 전체 개발자가 열람·필터링할 수 있는 중앙 서버 포털 피드.
+_Avoid_: Community Board, Chat Forum
+
 **User**:
-시스템에 인증하여 자신만의 AI 설정을 관리하고 Discussion Archive를 축적하는 개인 주체.
+시스템에 인증하여 자신만의 AI 설정을 관리하고 Discussion Archive를 축적·공유하는 개인 주체.
 _Avoid_: Account, Member, Client
 
 **Local AI Agent**:
