@@ -2,13 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { createAiAdapter } from '../src/lib/ai/factory';
 import { NoneAdapter } from '../src/lib/ai/adapters/none';
 import { MockAdapter } from '../src/lib/ai/adapters/mock';
-import { AiAgentConfig } from '../src/lib/ai/types';
+import { AiAgentConfig, AiExecutionResult } from '../src/lib/ai/types';
+import { AiProviderAdapter } from '../src/lib/ai/adapter';
 
-describe('AI Provider Adapters & Factory (TDD)', () => {
-  describe('NoneAdapter (Gating)', () => {
-    it('returns capability gating error when provider is none', async () => {
-      const adapter = new NoneAdapter();
-      const result = await adapter.execute('Hello world');
+describe('AI Provider Adapters & Factory (TDD)', (): void => {
+  describe('NoneAdapter (Gating)', (): void => {
+    it('returns capability gating error when provider is none', async (): Promise<void> => {
+      const adapter: NoneAdapter = new NoneAdapter();
+      const result: AiExecutionResult = await adapter.execute();
 
       expect(result.success).toBe(false);
       expect(result.providerUsed).toBe('none');
@@ -17,14 +18,14 @@ describe('AI Provider Adapters & Factory (TDD)', () => {
     });
   });
 
-  describe('MockAdapter (Deterministic Local Dev)', () => {
-    it('returns deterministic simulated response with model info', async () => {
+  describe('MockAdapter (Deterministic Local Dev)', (): void => {
+    it('returns deterministic simulated response with model info', async (): Promise<void> => {
       const config: AiAgentConfig = {
         provider: 'mock',
         model: 'test-gpt-model',
       };
-      const adapter = new MockAdapter(config);
-      const result = await adapter.execute('Analyze this repo', 'README preview text');
+      const adapter: MockAdapter = new MockAdapter(config);
+      const result: AiExecutionResult = await adapter.execute('Analyze this repo', 'README preview text');
 
       expect(result.success).toBe(true);
       expect(result.providerUsed).toBe('mock');
@@ -35,14 +36,14 @@ describe('AI Provider Adapters & Factory (TDD)', () => {
     });
   });
 
-  describe('createAiAdapter Factory', () => {
-    it('creates NoneAdapter for none provider', () => {
-      const adapter = createAiAdapter({ provider: 'none', model: 'none' });
+  describe('createAiAdapter Factory', (): void => {
+    it('creates NoneAdapter for none provider', (): void => {
+      const adapter: AiProviderAdapter = createAiAdapter({ provider: 'none', model: 'none' });
       expect(adapter).toBeInstanceOf(NoneAdapter);
     });
 
-    it('creates MockAdapter for mock provider', () => {
-      const adapter = createAiAdapter({ provider: 'mock', model: 'mock-1' });
+    it('creates MockAdapter for mock provider', (): void => {
+      const adapter: AiProviderAdapter = createAiAdapter({ provider: 'mock', model: 'mock-1' });
       expect(adapter).toBeInstanceOf(MockAdapter);
     });
   });
