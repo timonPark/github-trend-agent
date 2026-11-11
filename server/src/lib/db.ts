@@ -1,8 +1,12 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { User, DailySnapshot, DiscussionArchive, TrendingRepository } from './types';
+import { User, DailySnapshot, DiscussionArchive, TrendingRepository, CreateOAuthUserParams } from './types';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+
+function generateClientAuthKey(): string {
+  return `gta_live_${crypto.randomBytes(24).toString('hex')}`;
+}
 
 interface LocalDbState {
   users: [string, User][];
@@ -43,9 +47,18 @@ function writeLocalDbToFile(state: LocalDbState): void {
 }
 
 export interface ServerDatabase {
-  createUser(username: string, password_hash: string, client_auth_key?: string): Promise<User>;
+  createUser(
+    username: string,
+    password_hash: string,
+    client_auth_key?: string,
+    email?: string,
+    terms_agreed_at?: string
+  ): Promise<User>;
+  createOAuthUser(params: CreateOAuthUserParams): Promise<User>;
   findUserById(id: string): Promise<User | null>;
   findUserByUsername(username: string): Promise<User | null>;
+  findUserByEmail(email: string): Promise<User | null>;
+  findUserByOAuth(oauth_provider: string, oauth_id: string): Promise<User | null>;
   findUserByClientAuthKey(client_auth_key: string): Promise<User | null>;
   rotateClientAuthKey(user_id: string): Promise<string>;
   getDailySnapshot(snapshot_date: string): Promise<DailySnapshot | null>;
@@ -89,18 +102,69 @@ class MemoryServerDatabase implements ServerDatabase {
     writeLocalDbToFile(state);
   }
 
-  async createUser(username: string, password_hash: string, client_auth_key?: string): Promise<User> {
-    this.syncFromDisk();
+  private async validateNewUser(username: string, email?: string): Promise<void> {
     const existing: User | null = await this.findUserByUsername(username);
     if (existing) {
       throw new Error(`Username ${username} already exists`);
     }
+    if (email) {
+      const existingEmail: User | null = await this.findUserByEmail(email);
+      if (existingEmail) {
+        throw new Error(`Email ${email} is already registered`);
+      }
+    }
+  }
+
+  async createUser(
+    username: string,
+    password_hash: string,
+    client_auth_key?: string,
+    email?: string,
+    terms_agreed_at?: string
+  ): Promise<User> {
+    this.syncFromDisk();
+    await this.validateNewUser(username, email);
 
     const user: User = {
       id: crypto.randomUUID(),
       username,
       password_hash,
-      client_auth_key: client_auth_key || `gta_live_${crypto.randomBytes(24).toString('hex')}`,
+      client_auth_key: client_auth_key || generateClientAuthKey(),
+      email: email || null,
+      oauth_provider: 'local',
+      oauth_id: null,
+      terms_agreed_at: terms_agreed_at || null,
+      created_at: new Date().toISOString(),
+    };
+    this.users.set(user.id, user);
+    this.syncToDisk();
+    return user;
+  }
+
+  private async validateOAuthUser(params: CreateOAuthUserParams): Promise<void> {
+    const existingUsername: User | null = await this.findUserByUsername(params.username);
+    if (existingUsername) {
+      throw new Error(`Username ${params.username} already exists`);
+    }
+    const existingOAuth: User | null = await this.findUserByOAuth(params.oauth_provider, params.oauth_id);
+    if (existingOAuth) {
+      throw new Error(`OAuth account (${params.oauth_provider}:${params.oauth_id}) is already registered`);
+    }
+  }
+
+  async createOAuthUser(params: CreateOAuthUserParams): Promise<User> {
+    this.syncFromDisk();
+    await this.validateOAuthUser(params);
+
+    const user: User = {
+      id: crypto.randomUUID(),
+      username: params.username,
+      password_hash: null,
+      client_auth_key: params.client_auth_key || generateClientAuthKey(),
+      email: params.email || null,
+      oauth_provider: params.oauth_provider,
+      oauth_id: params.oauth_id,
+      terms_agreed_at: params.terms_agreed_at || null,
       created_at: new Date().toISOString(),
     };
     this.users.set(user.id, user);
@@ -117,6 +181,27 @@ class MemoryServerDatabase implements ServerDatabase {
     this.syncFromDisk();
     for (const user of this.users.values()) {
       if (user.username === username) {
+        return user;
+      }
+    }
+    return null;
+  }
+
+  async findUserByEmail(email: string): Promise<User | null> {
+    this.syncFromDisk();
+    const normalized: string = email.trim().toLowerCase();
+    for (const user of this.users.values()) {
+      if (user.email && user.email.toLowerCase() === normalized) {
+        return user;
+      }
+    }
+    return null;
+  }
+
+  async findUserByOAuth(oauth_provider: string, oauth_id: string): Promise<User | null> {
+    this.syncFromDisk();
+    for (const user of this.users.values()) {
+      if (user.oauth_provider === oauth_provider && user.oauth_id === oauth_id) {
         return user;
       }
     }
@@ -232,13 +317,41 @@ class SupabaseServerDatabase implements ServerDatabase {
     this.client = createClient(url, key);
   }
 
-  async createUser(username: string, password_hash: string, client_auth_key?: string): Promise<User> {
-    const key: string = client_auth_key || `gta_live_${crypto.randomBytes(24).toString('hex')}`;
-    const { data, error } = await this.client
-      .from('users')
-      .insert({ username, password_hash, client_auth_key: key })
-      .select()
-      .single();
+  async createUser(
+    username: string,
+    password_hash: string,
+    client_auth_key?: string,
+    email?: string,
+    terms_agreed_at?: string
+  ): Promise<User> {
+    const key: string = client_auth_key || generateClientAuthKey();
+    const payload: Record<string, unknown> = {
+      username,
+      password_hash,
+      client_auth_key: key,
+      email: email || null,
+      oauth_provider: 'local',
+      terms_agreed_at: terms_agreed_at || null,
+    };
+    const { data, error } = await this.client.from('users').insert(payload).select().single();
+    if (error) {
+      throw new Error(error.message);
+    }
+    return data as User;
+  }
+
+  async createOAuthUser(params: CreateOAuthUserParams): Promise<User> {
+    const key: string = params.client_auth_key || generateClientAuthKey();
+    const payload: Record<string, unknown> = {
+      username: params.username,
+      password_hash: null,
+      client_auth_key: key,
+      email: params.email || null,
+      oauth_provider: params.oauth_provider,
+      oauth_id: params.oauth_id,
+      terms_agreed_at: params.terms_agreed_at || null,
+    };
+    const { data, error } = await this.client.from('users').insert(payload).select().single();
     if (error) {
       throw new Error(error.message);
     }
@@ -262,6 +375,31 @@ class SupabaseServerDatabase implements ServerDatabase {
       .from('users')
       .select()
       .eq('username', username)
+      .maybeSingle();
+    if (error) {
+      throw new Error(error.message);
+    }
+    return data as User | null;
+  }
+
+  async findUserByEmail(email: string): Promise<User | null> {
+    const { data, error } = await this.client
+      .from('users')
+      .select()
+      .ilike('email', email.trim())
+      .maybeSingle();
+    if (error) {
+      throw new Error(error.message);
+    }
+    return data as User | null;
+  }
+
+  async findUserByOAuth(oauth_provider: string, oauth_id: string): Promise<User | null> {
+    const { data, error } = await this.client
+      .from('users')
+      .select()
+      .eq('oauth_provider', oauth_provider)
+      .eq('oauth_id', oauth_id)
       .maybeSingle();
     if (error) {
       throw new Error(error.message);

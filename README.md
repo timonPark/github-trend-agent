@@ -87,8 +87,12 @@ erDiagram
     USERS {
         uuid id PK "기본키 (UUID)"
         text username UK "고유 사용자명"
-        text password_hash "비밀번호 해시 (bcrypt)"
+        text password_hash "비밀번호 해시 (소셜 가입 시 null)"
         text client_auth_key UK "클라이언트 연동 인증키 (UUID)"
+        text email "이메일 주소"
+        text oauth_provider "인증 제공자 (local/github/google/kakao/naver)"
+        text oauth_id "소셜 고유 식별자"
+        timestamptz terms_agreed_at "이용약관 동의 일시"
         timestamptz created_at "계정 생성 일시"
     }
 
@@ -120,8 +124,12 @@ erDiagram
 | :--- | :--- | :--- | :--- | :--- |
 | **`users`** | `id` | `uuid` | PK, Default `gen_random_uuid()` | 계정 고유 식별자 |
 | | `username` | `text` | UNIQUE, NOT NULL | 사용자 로그인 아이디 |
-| | `password_hash` | `text` | NOT NULL | 단방향 해시 암호화 비밀번호 |
+| | `password_hash` | `text` | NULLABLE | 단방향 해시 암호화 비밀번호 (소셜 가입 시 null) |
 | | `client_auth_key` | `text` | UNIQUE, NOT NULL | 클라이언트 연동용 개인 인증키 (`X-Client-Auth-Key`) |
+| | `email` | `text` | NULLABLE | 이메일 주소 (비밀번호 재설정 및 소셜 식별) |
+| | `oauth_provider` | `text` | NULLABLE | 인증 제공자 (`local` / `github` / `google` / `kakao` / `naver`) |
+| | `oauth_id` | `text` | NULLABLE | 소셜 제공자 고유 유저 ID |
+| | `terms_agreed_at` | `timestamptz` | NULLABLE | 서비스 이용약관 및 개인정보 수집 동의 일시 |
 | | `created_at` | `timestamptz` | NOT NULL, Default `now()` | 계정 생성 일시 |
 | **`daily_snapshots`** | `snapshot_date` | `text` | PK | 일자 키 (포맷: `YYYY-MM-DD`, 00:00 정각 기준) |
 | | `repositories` | `jsonb` | NOT NULL | 당일 GitHub Star TOP 10 레포지토리 및 AI 요약 배열 |
@@ -140,7 +148,7 @@ erDiagram
 | | `created_at` | `timestamptz` | NOT NULL, Default `now()` | 아카이브 생성 및 영구 저장 일시 |
 
 > [!NOTE]
-> **Epic 6 계정 인증 고도화 (#49) 예정 컬럼**: 소셜 로그인(GitHub/Google/Kakao/Naver) 및 비밀번호 찾기 연동에 따라 `users` 테이블에 `email (text)`, `oauth_provider (text)`, `oauth_id (text)` 필드가 순차적으로 확장 적용될 예정입니다.
+> **Epic 6 계정 인증 고도화 (#55 적용 완료)**: 일반 가입자와 4대 소셜 로그인 가입자(GitHub/Google/Kakao/Naver) 모두 동일한 `users` 단일 계정 테이블에 통합 영속화되며, `(oauth_provider, oauth_id)` 복합 고유 제약 및 이메일 인덱스가 적용되었습니다.
 
 </details>
 
