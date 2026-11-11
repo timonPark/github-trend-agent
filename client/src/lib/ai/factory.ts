@@ -5,6 +5,7 @@ import { MockAdapter } from './adapters/mock';
 import { ClaudeCliAdapter } from './adapters/claude-cli';
 import { GeminiCliAdapter } from './adapters/gemini-cli';
 import { OllamaAdapter } from './adapters/ollama';
+import { OpenaiCliAdapter } from './adapters/openai-cli';
 import { OpenAiApiAdapter } from './adapters/openai-api';
 import { AnthropicApiAdapter } from './adapters/anthropic-api';
 import { GeminiApiAdapter } from './adapters/gemini-api';
@@ -36,6 +37,8 @@ export function createAiAdapter(config: AiAgentConfig): AiProviderAdapter {
       return new GeminiCliAdapter(config);
     case 'cli-ollama':
       return new OllamaAdapter(config);
+    case 'cli-openai':
+      return new OpenaiCliAdapter(config);
     case 'api-openai':
       return new OpenAiApiAdapter(config);
     case 'api-anthropic':

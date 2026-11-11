@@ -1,7 +1,26 @@
+import { execSync } from 'child_process';
 import { AiProviderAdapter } from '../adapter';
 import { AiAgentConfig, AiExecutionResult } from '../types';
 import { runSubprocessCli } from './subprocess';
 import { toErrorMessage } from '../../types/error';
+
+function resolveGeminiCommand(configuredPath?: string): string {
+  if (configuredPath && configuredPath.trim().length > 0) {
+    return configuredPath.trim();
+  }
+  try {
+    const agyPath: string = execSync('which agy', {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf-8',
+    }).trim();
+    if (agyPath) {
+      return agyPath;
+    }
+  } catch {
+    // fallback to gemini
+  }
+  return 'gemini';
+}
 
 export class GeminiCliAdapter implements AiProviderAdapter {
   constructor(private readonly config: AiAgentConfig) {}
@@ -11,7 +30,7 @@ export class GeminiCliAdapter implements AiProviderAdapter {
     const fullPrompt: string = context
       ? `[Reference Context / README]\n${context}\n\n[Instruction]\n${prompt}`
       : prompt;
-    const cmd: string = this.config.cliPath || 'gemini';
+    const cmd: string = resolveGeminiCommand(this.config.cliPath);
     const model: string = this.config.model || 'gemini-local-cli';
 
     try {
