@@ -10,12 +10,15 @@ export interface ApiResponse<T = unknown> {
 export interface RegisterRequestDto {
   username: string;
   password?: string;
+  email?: string;
+  terms_agreed?: boolean;
 }
 
 export interface RegisterResponseDto {
   user_id: string;
   username: string;
   client_auth_key: string;
+  terms_agreed_at?: string;
 }
 
 export interface LoginRequestDto {
