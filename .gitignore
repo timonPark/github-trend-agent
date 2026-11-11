@@ -10,6 +10,7 @@ dist/
 *.sqlite-wal
 *.sqlite-shm
 .data/
+*local-server-db.json
 .env
 .env.*
 !.env.example

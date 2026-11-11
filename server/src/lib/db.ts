@@ -1,6 +1,46 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { User, DailySnapshot, DiscussionArchive, TrendingRepository } from './types';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+
+interface LocalDbState {
+  users: [string, User][];
+  snapshots: [string, DailySnapshot][];
+  archives: [string, DiscussionArchive][];
+}
+
+function resolveLocalDbPath(): string {
+  const cwd: string = process.cwd();
+  if (fs.existsSync(path.join(cwd, 'server'))) {
+    return path.join(cwd, 'server', 'local-server-db.json');
+  }
+  return path.join(cwd, 'local-server-db.json');
+}
+
+function readLocalDbFromFile(): LocalDbState | null {
+  if (process.env.NODE_ENV === 'test') return null;
+  try {
+    const fp: string = resolveLocalDbPath();
+    if (fs.existsSync(fp)) {
+      const content: string = fs.readFileSync(fp, 'utf-8');
+      return JSON.parse(content) as LocalDbState;
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+function writeLocalDbToFile(state: LocalDbState): void {
+  if (process.env.NODE_ENV === 'test') return;
+  try {
+    const fp: string = resolveLocalDbPath();
+    fs.writeFileSync(fp, JSON.stringify(state, null, 2), 'utf-8');
+  } catch {
+    // ignore
+  }
+}
 
 export interface ServerDatabase {
   createUser(username: string, password_hash: string, client_auth_key?: string): Promise<User>;
@@ -21,13 +61,36 @@ export interface ServerDatabase {
 
 export type ServerDbAdapter = ServerDatabase;
 
-// In-Memory fallback implementation for tests and local standalone runs
+// In-Memory & Local file fallback implementation for tests and local standalone runs
 class MemoryServerDatabase implements ServerDatabase {
   private users: Map<string, User> = new Map<string, User>();
   private snapshots: Map<string, DailySnapshot> = new Map<string, DailySnapshot>();
   private archives: Map<string, DiscussionArchive> = new Map<string, DiscussionArchive>();
 
+  constructor() {
+    this.syncFromDisk();
+  }
+
+  private syncFromDisk(): void {
+    const state: LocalDbState | null = readLocalDbFromFile();
+    if (state) {
+      this.users = new Map<string, User>(state.users || []);
+      this.snapshots = new Map<string, DailySnapshot>(state.snapshots || []);
+      this.archives = new Map<string, DiscussionArchive>(state.archives || []);
+    }
+  }
+
+  private syncToDisk(): void {
+    const state: LocalDbState = {
+      users: Array.from(this.users.entries()),
+      snapshots: Array.from(this.snapshots.entries()),
+      archives: Array.from(this.archives.entries()),
+    };
+    writeLocalDbToFile(state);
+  }
+
   async createUser(username: string, password_hash: string, client_auth_key?: string): Promise<User> {
+    this.syncFromDisk();
     const existing: User | null = await this.findUserByUsername(username);
     if (existing) {
       throw new Error(`Username ${username} already exists`);
@@ -41,14 +104,17 @@ class MemoryServerDatabase implements ServerDatabase {
       created_at: new Date().toISOString(),
     };
     this.users.set(user.id, user);
+    this.syncToDisk();
     return user;
   }
 
   async findUserById(id: string): Promise<User | null> {
+    this.syncFromDisk();
     return this.users.get(id) || null;
   }
 
   async findUserByUsername(username: string): Promise<User | null> {
+    this.syncFromDisk();
     for (const user of this.users.values()) {
       if (user.username === username) {
         return user;
@@ -58,6 +124,7 @@ class MemoryServerDatabase implements ServerDatabase {
   }
 
   async findUserByClientAuthKey(client_auth_key: string): Promise<User | null> {
+    this.syncFromDisk();
     for (const user of this.users.values()) {
       if (user.client_auth_key === client_auth_key) {
         return user;
@@ -67,29 +134,35 @@ class MemoryServerDatabase implements ServerDatabase {
   }
 
   async rotateClientAuthKey(user_id: string): Promise<string> {
+    this.syncFromDisk();
     const user: User | undefined = this.users.get(user_id);
     if (!user) {
       throw new Error('User not found');
     }
     const newKey: string = `gta_live_${crypto.randomBytes(24).toString('hex')}`;
     user.client_auth_key = newKey;
+    this.syncToDisk();
     return newKey;
   }
 
   async getDailySnapshot(snapshot_date: string): Promise<DailySnapshot | null> {
+    this.syncFromDisk();
     return this.snapshots.get(snapshot_date) || null;
   }
 
   async listDailySnapshots(): Promise<DailySnapshot[]> {
+    this.syncFromDisk();
     const list: DailySnapshot[] = Array.from(this.snapshots.values());
     return list.sort((a: DailySnapshot, b: DailySnapshot): number => b.snapshot_date.localeCompare(a.snapshot_date));
   }
 
   async countUsers(): Promise<number> {
+    this.syncFromDisk();
     return this.users.size;
   }
 
   async saveDailySnapshot(snapshot_date: string, repositories: TrendingRepository[], created_by?: string): Promise<DailySnapshot> {
+    this.syncFromDisk();
     const snapshot: DailySnapshot = {
       snapshot_date,
       repositories,
@@ -97,23 +170,28 @@ class MemoryServerDatabase implements ServerDatabase {
       updated_at: new Date().toISOString(),
     };
     this.snapshots.set(snapshot_date, snapshot);
+    this.syncToDisk();
     return snapshot;
   }
 
   async createDiscussionArchive(data: Omit<DiscussionArchive, 'created_at'>): Promise<DiscussionArchive> {
+    this.syncFromDisk();
     const archive: DiscussionArchive = {
       ...data,
       created_at: new Date().toISOString(),
     };
     this.archives.set(archive.id, archive);
+    this.syncToDisk();
     return archive;
   }
 
   async getDiscussionArchiveById(id: string): Promise<DiscussionArchive | null> {
+    this.syncFromDisk();
     return this.archives.get(id) || null;
   }
 
   async listDiscussionArchivesByUser(user_id: string): Promise<DiscussionArchive[]> {
+    this.syncFromDisk();
     const results: DiscussionArchive[] = [];
     for (const item of this.archives.values()) {
       if (item.user_id === user_id) {
@@ -124,6 +202,7 @@ class MemoryServerDatabase implements ServerDatabase {
   }
 
   async listPublicDiscussionArchives(): Promise<DiscussionArchive[]> {
+    this.syncFromDisk();
     const results: DiscussionArchive[] = [];
     for (const item of this.archives.values()) {
       if (item.is_public) {
@@ -134,11 +213,13 @@ class MemoryServerDatabase implements ServerDatabase {
   }
 
   async updateArchiveVisibility(id: string, user_id: string, is_public: boolean): Promise<DiscussionArchive | null> {
+    this.syncFromDisk();
     const item: DiscussionArchive | undefined = this.archives.get(id);
     if (!item || item.user_id !== user_id) {
       return null;
     }
     item.is_public = is_public;
+    this.syncToDisk();
     return item;
   }
 }
