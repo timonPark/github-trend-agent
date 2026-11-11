@@ -58,8 +58,12 @@
 
 이 프로젝트의 모든 작업은 GitHub 이슈(`timonPark/github-trend-agent`)와 연동하여 다음 절차를 엄격히 준수합니다.
 
-1. **GitHub 이슈 기반 착수**:
+1. **GitHub 이슈 및 프로젝트 보드(Project #13) 연동 관리**:
    - 모든 작업은 승인된 GitHub 이슈를 기반으로 시작합니다.
+   - **GitHub Project 보드 동기화 필수**:
+     - 이슈를 신규 등록하거나 수정할 경우, 반드시 GitHub Project 보드에도 등록·동기화합니다.
+     - 단순 등록에 그치지 않고, 프로젝트 보드의 분류 체계인 **커스텀 필드(`Epic Phase`, `Issue Type (Epic / Sub-issue)`, `Milestone`, `WBS Code`, `Status`)를 누락 없이 온전하게 설정**합니다.
+     - 에픽과 하위 이슈 간에는 GitHub 공식 **Sub-issues 계층 관계**를 반드시 묶어두어 보드와 이슈 화면에서 체계적으로 조회될 수 있도록 관리합니다.
 2. **이슈 브랜치 생성**:
    - `{이슈번호}-{이슈내용}` 형식(예: `7-local-ai-agent-integration`)으로 브랜치를 분기합니다.
 3. **`work_history/` 실시간 기록**:
