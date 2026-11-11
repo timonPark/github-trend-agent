@@ -61,6 +61,37 @@ export function verifySessionToken(token: string): { userId: string; username: s
   }
 }
 
+export function createPasswordResetToken(userId: string, email: string): string {
+  const payload: string = JSON.stringify({
+    userId,
+    email,
+    type: 'password_reset',
+    exp: Date.now() + 1000 * 60 * 60, // 1 hour
+  });
+  const b64Payload: string = Buffer.from(payload).toString('base64url');
+  const signature: string = crypto.createHmac('sha256', SESSION_SECRET).update(b64Payload).digest('base64url');
+  return `${b64Payload}.${signature}`;
+}
+
+export function verifyPasswordResetToken(token: string): { userId: string; email: string } | null {
+  try {
+    const parts: string[] = token.split('.');
+    const b64Payload: string = parts[0];
+    const signature: string = parts[1];
+    if (!b64Payload || !signature) return null;
+    const expectedSig: string = crypto.createHmac('sha256', SESSION_SECRET).update(b64Payload).digest('base64url');
+    if (signature !== expectedSig) return null;
+    const payload: { userId: string; email: string; type?: string; exp?: number } = JSON.parse(
+      Buffer.from(b64Payload, 'base64url').toString('utf-8')
+    ) as { userId: string; email: string; type?: string; exp?: number };
+    if (payload.type !== 'password_reset') return null;
+    if (payload.exp && Date.now() > payload.exp) return null;
+    return { userId: payload.userId, email: payload.email };
+  } catch {
+    return null;
+  }
+}
+
 export async function authenticateClientKey(authHeaderOrKey?: string | null): Promise<User | null> {
   if (!authHeaderOrKey) {
     return null;
