@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { ServerHeader, ServerTabType } from '../components/ServerHeader';
 import { DashboardView } from '../components/DashboardView';
 import { KeyCenterView } from '../components/KeyCenterView';
+import { SnapshotExplorer } from '../components/SnapshotExplorer';
 import { AuthModal } from '../components/AuthModal';
 
 interface AuthUser {
@@ -65,13 +66,7 @@ export default function ServerPortalPage(): React.JSX.Element {
           />
         )}
 
-        {activeTab === 'snapshots' && (
-          <div style={{ padding: '60px 20px', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '6px', border: '1px solid #d0d7de', color: '#656d76' }}>
-            <div style={{ fontSize: '36px', marginBottom: '12px' }}>📅</div>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#1f2328', margin: '0 0 6px 0' }}>Snapshot Explorer</h3>
-            <p style={{ fontSize: '13px', margin: 0 }}>중앙 서버 스냅샷 탐색기 화면은 Issue #28에서 구현될 예정입니다.</p>
-          </div>
-        )}
+        {activeTab === 'snapshots' && <SnapshotExplorer />}
 
         {activeTab === 'feed' && (
           <div style={{ padding: '60px 20px', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '6px', border: '1px solid #d0d7de', color: '#656d76' }}>
