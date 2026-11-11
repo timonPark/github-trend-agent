@@ -100,11 +100,11 @@ export default function ClientHomePage(): React.JSX.Element {
       }
 
       const setRes: Response = await fetch('/api/settings');
-      const setData: { settings?: ClientSettingsDto; stats?: LocalStats } =
-        (await setRes.json()) as { settings?: ClientSettingsDto; stats?: LocalStats };
+      const setData: { settings?: ClientSettingsDto & { server_auth_key?: string }; stats?: LocalStats } =
+        (await setRes.json()) as { settings?: ClientSettingsDto & { server_auth_key?: string }; stats?: LocalStats };
       if (setData.settings) {
         setServerUrl(setData.settings.server_url || 'http://localhost:4000');
-        setServerAuthKey(setData.settings.client_auth_key || '');
+        setServerAuthKey(setData.settings.client_auth_key || setData.settings.server_auth_key || '');
       }
       if (setData.stats) {
         setStats(setData.stats);

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AiAgentConfig, DetectedCli } from '../lib/ai/types';
 import { toErrorMessage } from '../lib/types/error';
 import { ApiResponse, ClientSettingsDto, AiTestResponseDto } from '../lib/types/api';
@@ -46,6 +46,20 @@ export function SettingsTab({
   const [aiTesting, setAiTesting] = useState<boolean>(false);
   const [aiMessage, setAiMessage] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
+
+  useEffect((): void => {
+    setServerUrl(initialServerUrl);
+  }, [initialServerUrl]);
+
+  useEffect((): void => {
+    setServerAuthKey(initialServerAuthKey);
+  }, [initialServerAuthKey]);
+
+  useEffect((): void => {
+    setAiProvider(initialAiConfig.provider);
+    setAiModel(initialAiConfig.model || 'default');
+    setAiApiKey(initialAiConfig.apiKey || '');
+  }, [initialAiConfig]);
 
   const handleSaveServerSettings = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
@@ -372,6 +386,7 @@ export function SettingsTab({
               <option value="cli-claude">Claude Code CLI (Headless Local)</option>
               <option value="cli-gemini">Gemini CLI (Google AGY Headless)</option>
               <option value="cli-ollama">Ollama (Local LLM HTTP)</option>
+              <option value="cli-openai">OpenAI CLI (Headless Local)</option>
               <option value="api-openai">Direct API: OpenAI (ChatGPT)</option>
               <option value="api-anthropic">Direct API: Anthropic (Claude)</option>
               <option value="api-gemini">Direct API: Google Gemini</option>

@@ -5,9 +5,13 @@ import { Database as DatabaseInstance } from 'better-sqlite3';
 import { getClientDb, resetClientDbForTest } from '../src/lib/db';
 import { getAiConfig, saveAiConfig } from '../src/lib/ai/config';
 import { executeAiRequest } from '../src/lib/ai/runner';
+import { createAiAdapter } from '../src/lib/ai/factory';
+import { detectLocalAiClis } from '../src/lib/ai/detector';
+import { OpenaiCliAdapter } from '../src/lib/ai/adapters/openai-cli';
+import { GeminiCliAdapter } from '../src/lib/ai/adapters/gemini-cli';
 import { GET as getAiStatusHandler, POST as saveAiStatusHandler } from '../src/app/api/ai/status/route';
 import { POST as testAiHandler } from '../src/app/api/ai/test/route';
-import { AiAgentConfig, AiExecutionResult } from '../src/lib/ai/types';
+import { AiAgentConfig, AiExecutionResult, DetectedCli } from '../src/lib/ai/types';
 
 const TEST_DB_PATH: string = path.resolve(__dirname, './test_ai_client.sqlite');
 
@@ -142,6 +146,27 @@ describe('Local AI Agent Integration & Runner (#7)', (): void => {
       const data: AiExecutionResult = (await res.json()) as AiExecutionResult;
       expect(data.success).toBe(true);
       expect(data.response).toContain('[Mock AI Response: ping-test-model]');
+    });
+
+    it('detects local CLIs including agy fallback and openai target (#43)', (): void => {
+      const clis: DetectedCli[] = detectLocalAiClis();
+      expect(clis.length).toBeGreaterThanOrEqual(4);
+
+      const geminiCli = clis.find((c: DetectedCli): boolean => c.id === 'gemini');
+      expect(geminiCli).toBeDefined();
+      expect(geminiCli?.name).toContain('Google Gemini / AGY CLI');
+
+      const openaiCli = clis.find((c: DetectedCli): boolean => c.id === 'openai');
+      expect(openaiCli).toBeDefined();
+      expect(openaiCli?.name).toBe('OpenAI CLI');
+    });
+
+    it('creates OpenaiCliAdapter and GeminiCliAdapter correctly (#43)', (): void => {
+      const openaiAdapter = createAiAdapter({ provider: 'cli-openai', model: 'gpt-4o' });
+      expect(openaiAdapter).toBeInstanceOf(OpenaiCliAdapter);
+
+      const geminiAdapter = createAiAdapter({ provider: 'cli-gemini', model: 'gemini-1.5-pro' });
+      expect(geminiAdapter).toBeInstanceOf(GeminiCliAdapter);
     });
   });
 });

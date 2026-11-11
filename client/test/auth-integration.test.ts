@@ -168,11 +168,49 @@ describe('Client Auth Integration & Local Data Preservation', (): void => {
       expect(afterArchives).toEqual({ c: 1 });
 
       const getRes: Response = await getSettingsHandler();
-      const getData: { stats: { snapshotCount: number; sessionCount: number; archiveCount: number } } =
-        (await getRes.json()) as { stats: { snapshotCount: number; sessionCount: number; archiveCount: number } };
+      const getData: {
+        settings: { server_auth_key: string; client_auth_key: string; server_url: string; is_key_set: boolean };
+        stats: { snapshotCount: number; sessionCount: number; archiveCount: number };
+      } = (await getRes.json()) as {
+        settings: { server_auth_key: string; client_auth_key: string; server_url: string; is_key_set: boolean };
+        stats: { snapshotCount: number; sessionCount: number; archiveCount: number };
+      };
       expect(getData.stats.snapshotCount).toBe(1);
       expect(getData.stats.sessionCount).toBe(1);
       expect(getData.stats.archiveCount).toBe(1);
+      expect(getData.settings.server_auth_key).toBe('gta_live_brand_new_key_9999');
+      expect(getData.settings.client_auth_key).toBe('gta_live_brand_new_key_9999');
+      expect(getData.settings.is_key_set).toBe(true);
+    });
+
+    it('supports client_auth_key in POST /api/settings interchangeably (#43)', async (): Promise<void> => {
+      const db: DatabaseInstance = getClientDb(TEST_DB_PATH);
+      global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+        valid: true,
+        user: { id: 'usr-dual', username: 'dual_user' },
+      }), { status: 200 }));
+
+      const req: Request = new Request('http://localhost:3000/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          server_url: 'http://localhost:4000',
+          client_auth_key: 'gta_live_dual_key_7777',
+          verify: true,
+        }),
+      });
+
+      const res: Response = await saveSettingsHandler(req);
+      expect(res.status).toBe(200);
+
+      const savedKey: string | null = getServerAuthKey(db);
+      expect(savedKey).toBe('gta_live_dual_key_7777');
+
+      const getRes: Response = await getSettingsHandler();
+      const getData: { settings: { client_auth_key: string; server_auth_key: string } } =
+        (await getRes.json()) as { settings: { client_auth_key: string; server_auth_key: string } };
+      expect(getData.settings.client_auth_key).toBe('gta_live_dual_key_7777');
+      expect(getData.settings.server_auth_key).toBe('gta_live_dual_key_7777');
     });
   });
 

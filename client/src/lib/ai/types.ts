@@ -3,6 +3,7 @@ export type AiProviderType =
   | 'cli-claude'
   | 'cli-gemini'
   | 'cli-ollama'
+  | 'cli-openai'
   | 'api-openai'
   | 'api-anthropic'
   | 'api-gemini'
@@ -26,7 +27,7 @@ export interface AiExecutionResult {
 }
 
 export interface DetectedCli {
-  id: 'claude' | 'gemini' | 'ollama';
+  id: 'claude' | 'gemini' | 'ollama' | 'openai';
   name: string;
   command: string;
   installed: boolean;

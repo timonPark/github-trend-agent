@@ -14,6 +14,7 @@ interface SettingsGetResponse {
   settings: {
     server_url: string;
     server_auth_key: string;
+    client_auth_key: string;
     is_key_set: boolean;
   };
   stats: {
@@ -38,6 +39,7 @@ interface SettingsPostResponse {
 interface SettingsRequestBody {
   server_url?: string;
   server_auth_key?: string;
+  client_auth_key?: string;
   ai_provider?: AiProviderType;
   ai_model?: string;
   ai_api_key?: string;
@@ -69,6 +71,7 @@ export async function GET(): Promise<NextResponse<SettingsGetResponse>> {
       settings: {
         server_url: serverUrl,
         server_auth_key: serverAuthKey,
+        client_auth_key: serverAuthKey,
         is_key_set: Boolean(serverAuthKey),
       },
       stats: {
@@ -80,7 +83,7 @@ export async function GET(): Promise<NextResponse<SettingsGetResponse>> {
   } catch (err: unknown) {
     return NextResponse.json<SettingsGetResponse>(
       {
-        settings: { server_url: '', server_auth_key: '', is_key_set: false },
+        settings: { server_url: '', server_auth_key: '', client_auth_key: '', is_key_set: false },
         stats: { snapshotCount: 0, sessionCount: 0, archiveCount: 0 },
         error: toErrorMessage(err),
       },
@@ -92,7 +95,15 @@ export async function GET(): Promise<NextResponse<SettingsGetResponse>> {
 export async function POST(request: Request): Promise<NextResponse<SettingsPostResponse>> {
   try {
     const body: SettingsRequestBody = (await request.json()) as SettingsRequestBody;
-    const { server_url, server_auth_key, ai_provider, ai_model, ai_api_key, verify = true } = body;
+    const {
+      server_url,
+      server_auth_key,
+      client_auth_key,
+      ai_provider,
+      ai_model,
+      ai_api_key,
+      verify = true,
+    } = body;
 
     const db: DatabaseInstance = getClientDb();
 
@@ -115,8 +126,10 @@ export async function POST(request: Request): Promise<NextResponse<SettingsPostR
       ? server_url.trim()
       : getSetting('server_url', db) || 'http://localhost:4000';
 
-    if (server_auth_key !== undefined && typeof server_auth_key === 'string') {
-      const trimmedKey: string = server_auth_key.trim();
+    const inputKey: string | undefined = server_auth_key !== undefined ? server_auth_key : client_auth_key;
+
+    if (inputKey !== undefined && typeof inputKey === 'string') {
+      const trimmedKey: string = inputKey.trim();
 
       let verification: VerifyKeyResult = { valid: true };
       if (verify && trimmedKey.length > 0) {
