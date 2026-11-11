@@ -200,5 +200,22 @@ describe('Client Auth Integration & Local Data Preservation', (): void => {
       expect(data.authenticated).toBe(true);
       expect(data.user.username).toBe('timon');
     });
+
+    it('returns valid: true and configured: true matching UI AuthGate expectations (#39)', async (): Promise<void> => {
+      const db: DatabaseInstance = getClientDb(TEST_DB_PATH);
+      setServerAuthKey('gta_live_test', db);
+
+      global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+        valid: true,
+        user: { id: 'usr-1', username: 'timon' },
+      }), { status: 200 }));
+
+      const res: Response = await getAuthStatusHandler(new Request('http://localhost:3000/api/auth/status'));
+      const data: { valid: boolean; configured: boolean; authenticated: boolean } =
+        (await res.json()) as { valid: boolean; configured: boolean; authenticated: boolean };
+      expect(data.valid).toBe(true);
+      expect(data.configured).toBe(true);
+      expect(data.authenticated).toBe(true);
+    });
   });
 });
