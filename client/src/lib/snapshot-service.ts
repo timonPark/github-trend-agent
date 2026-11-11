@@ -69,7 +69,23 @@ export async function getOrFetchDailySnapshot(
     }
   }
 
-  // 3. Tier 3: Fresh Local Scrape & Dual-DB Sync
+  // Guard: 과거 날짜(오늘 이전)인 경우 실시간 크롤링을 수행하지 않고 빈 스냅샷 반환
+  const today: string = new Date().toISOString().split('T')[0];
+  if (targetDate < today) {
+    const emptySnapshot: LocalSnapshot = {
+      snapshot_date: targetDate,
+      repositories: [],
+      source: 'remote-server',
+      created_at: new Date().toISOString(),
+    };
+    return {
+      source: 'local-cache',
+      snapshot: emptySnapshot,
+      syncedWithServer: false,
+    };
+  }
+
+  // 3. Tier 3: Fresh Local Scrape & Dual-DB Sync (오늘 날짜만 수행)
   const scrapedRepos: TrendingRepository[] = await scrapeGitHubTrending({ max: 10 });
   const localSaved: LocalSnapshot = saveLocalSnapshot(targetDate, scrapedRepos, 'local-scraper', db);
 

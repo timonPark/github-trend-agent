@@ -8,6 +8,7 @@ import {
   listLocalArchives,
   updateLocalArchiveVisibility,
   getSetting,
+  getServerAuthKey,
 } from '@/lib/db';
 import { getAiConfig } from '@/lib/ai/config';
 import { generateDiscussionSummary } from '@/lib/ai/discussion';
@@ -24,7 +25,7 @@ import {
 
 async function syncArchiveToServer(archive: LocalArchive, db: DatabaseInstance): Promise<boolean> {
   const serverUrl: string = getSetting('server_url', db) || 'http://localhost:4000';
-  const authKey: string | null = getSetting('client_auth_key', db);
+  const authKey: string | null = getServerAuthKey(db) || getSetting('client_auth_key', db);
   if (!authKey) return false;
 
   try {
@@ -41,7 +42,7 @@ async function syncArchiveToServer(archive: LocalArchive, db: DatabaseInstance):
 
 async function syncPatchToServer(id: string, isPublic: boolean, db: DatabaseInstance): Promise<boolean> {
   const serverUrl: string = getSetting('server_url', db) || 'http://localhost:4000';
-  const authKey: string | null = getSetting('client_auth_key', db);
+  const authKey: string | null = getServerAuthKey(db) || getSetting('client_auth_key', db);
   if (!authKey) return false;
 
   try {

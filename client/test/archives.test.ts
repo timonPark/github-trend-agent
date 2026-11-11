@@ -115,6 +115,49 @@ describe('Client Discussion Archives API (#11)', (): void => {
       expect(saved?.is_public).toBe(true);
     });
 
+    it('syncArchiveToServer synchronizes to central server using server_auth_key (#47)', async (): Promise<void> => {
+      const db: DatabaseInstance = getClientDb(TEST_DB_PATH);
+      saveAiConfig({ provider: 'mock', model: 'gpt-4o-mini' }, db);
+      setSetting('server_auth_key', 'gta_live_sync_key_999', db);
+
+      let capturedHeader: string | null = null;
+      let capturedBody: unknown = null;
+
+      global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit): Promise<Response> => {
+        if (url.includes('/api/archives')) {
+          capturedHeader = (init?.headers as Record<string, string>)?.['x-client-auth-key'] || null;
+          capturedBody = JSON.parse(init?.body as string);
+          return new Response(JSON.stringify({ success: true, archive: capturedBody }), { status: 201 });
+        }
+        return new Response(null, { status: 404 });
+      });
+
+      const body: CreateLocalArchiveRequestDto = {
+        snapshot_date: '2026-11-11',
+        repo_full_name: 'test/synced-repo',
+        repo_url: 'https://github.com/test/synced-repo',
+        discussion_summary: '동기화 테스트 요약',
+        messages: mockMessages,
+        is_public: true,
+      };
+
+      const req: Request = new Request('http://localhost:3000/api/archives', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const res: Response = await createArchiveHandler(req);
+      expect(res.status).toBe(200);
+
+      const json: ApiResponse<CreateLocalArchiveResponseDto> =
+        (await res.json()) as ApiResponse<CreateLocalArchiveResponseDto>;
+      expect(json.success).toBe(true);
+      expect(json.data?.synced_with_server).toBe(true);
+      expect(capturedHeader).toBe('gta_live_sync_key_999');
+      expect((capturedBody as { repo_full_name: string })?.repo_full_name).toBe('test/synced-repo');
+    });
+
     it('GET /api/archives returns all local archives sorted by created_at DESC', async (): Promise<void> => {
       const db: DatabaseInstance = getClientDb(TEST_DB_PATH);
       saveAiConfig({ provider: 'mock', model: 'gpt-4o-mini' }, db);

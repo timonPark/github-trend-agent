@@ -54,6 +54,8 @@ export default function ClientHomePage(): React.JSX.Element {
   const [readmeLoading, setReadmeLoading] = useState<boolean>(false);
   const [readmeContent, setReadmeContent] = useState<string>('');
   const [generatingDigestRepo, setGeneratingDigestRepo] = useState<string | null>(null);
+  const [bulkGenerating, setBulkGenerating] = useState<boolean>(false);
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null);
   const [selectedDiscussionRepo, setSelectedDiscussionRepo] = useState<TrendingRepository | null>(null);
 
   const loadTrendingData = useCallback(async (targetDate?: string): Promise<void> => {
@@ -209,6 +211,34 @@ export default function ClientHomePage(): React.JSX.Element {
     }
   };
 
+  const processSingleBulkDigest = async (repo: TrendingRepository): Promise<void> => {
+    try {
+      const digest: string = await requestDigestApi(repo.full_name);
+      applyDigestUpdate(repo.full_name, digest);
+    } catch {
+      // resilient continue on single failure
+    }
+  };
+
+  const handleGenerateAllDigests = async (): Promise<void> => {
+    if (aiConfig.provider === 'none') {
+      alert('AI 에이전트가 연동되지 않았습니다. 설정 탭에서 모델 또는 API Key를 설정해주세요.');
+      setActiveTab('settings');
+      return;
+    }
+    setBulkGenerating(true);
+    const total: number = trendingRepos.length;
+    try {
+      for (let i: number = 0; i < total; i++) {
+        setBulkProgress({ current: i + 1, total });
+        await processSingleBulkDigest(trendingRepos[i]);
+      }
+    } finally {
+      setBulkGenerating(false);
+      setBulkProgress(null);
+    }
+  };
+
   const handleStartDiscussion = (repo: TrendingRepository): void => {
     setSelectedDiscussionRepo(repo);
     setActiveTab('discussion');
@@ -323,10 +353,13 @@ export default function ClientHomePage(): React.JSX.Element {
             loadingDate={loadingDate}
             aiGated={aiConfig.provider === 'none'}
             generatingDigestRepo={generatingDigestRepo}
+            bulkGenerating={bulkGenerating}
+            bulkProgress={bulkProgress}
             onRefresh={handleManualScrape}
             onDateChange={handleDateChange}
             onOpenReadme={handleOpenReadme}
             onGenerateDigest={handleGenerateDigest}
+            onGenerateAllDigests={handleGenerateAllDigests}
             onStartDiscussion={handleStartDiscussion}
           />
         )}
