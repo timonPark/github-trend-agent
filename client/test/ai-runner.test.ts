@@ -158,7 +158,7 @@ describe('Local AI Agent Integration & Runner (#7)', (): void => {
 
       const openaiCli = clis.find((c: DetectedCli): boolean => c.id === 'openai');
       expect(openaiCli).toBeDefined();
-      expect(openaiCli?.name).toBe('OpenAI CLI');
+      expect(openaiCli?.name).toContain('OpenAI / Codex CLI');
     });
 
     it('creates OpenaiCliAdapter and GeminiCliAdapter correctly (#43)', (): void => {

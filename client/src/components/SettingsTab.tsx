@@ -386,7 +386,7 @@ export function SettingsTab({
               <option value="cli-claude">Claude Code CLI (Headless Local)</option>
               <option value="cli-gemini">Gemini CLI (Google AGY Headless)</option>
               <option value="cli-ollama">Ollama (Local LLM HTTP)</option>
-              <option value="cli-openai">OpenAI CLI (Headless Local)</option>
+              <option value="cli-openai">OpenAI / Codex CLI (Headless Local)</option>
               <option value="api-openai">Direct API: OpenAI (ChatGPT)</option>
               <option value="api-anthropic">Direct API: Anthropic (Claude)</option>
               <option value="api-gemini">Direct API: Google Gemini</option>
