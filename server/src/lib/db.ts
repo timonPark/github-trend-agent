@@ -9,6 +9,8 @@ export interface ServerDatabase {
   findUserByClientAuthKey(client_auth_key: string): Promise<User | null>;
   rotateClientAuthKey(user_id: string): Promise<string>;
   getDailySnapshot(snapshot_date: string): Promise<DailySnapshot | null>;
+  listDailySnapshots(): Promise<DailySnapshot[]>;
+  countUsers(): Promise<number>;
   saveDailySnapshot(snapshot_date: string, repositories: TrendingRepository[], created_by?: string): Promise<DailySnapshot>;
   createDiscussionArchive(archive: Omit<DiscussionArchive, 'created_at'>): Promise<DiscussionArchive>;
   getDiscussionArchiveById(id: string): Promise<DiscussionArchive | null>;
@@ -76,6 +78,15 @@ class MemoryServerDatabase implements ServerDatabase {
 
   async getDailySnapshot(snapshot_date: string): Promise<DailySnapshot | null> {
     return this.snapshots.get(snapshot_date) || null;
+  }
+
+  async listDailySnapshots(): Promise<DailySnapshot[]> {
+    const list: DailySnapshot[] = Array.from(this.snapshots.values());
+    return list.sort((a: DailySnapshot, b: DailySnapshot): number => b.snapshot_date.localeCompare(a.snapshot_date));
+  }
+
+  async countUsers(): Promise<number> {
+    return this.users.size;
   }
 
   async saveDailySnapshot(snapshot_date: string, repositories: TrendingRepository[], created_by?: string): Promise<DailySnapshot> {
@@ -211,6 +222,22 @@ class SupabaseServerDatabase implements ServerDatabase {
       throw new Error(error.message);
     }
     return data as DailySnapshot | null;
+  }
+
+  async listDailySnapshots(): Promise<DailySnapshot[]> {
+    const { data, error } = await this.client
+      .from('daily_snapshots')
+      .select()
+      .order('snapshot_date', { ascending: false });
+    if (error || !data) return [];
+    return data as DailySnapshot[];
+  }
+
+  async countUsers(): Promise<number> {
+    const { count, error } = await this.client
+      .from('users')
+      .select('*', { count: 'exact', head: true });
+    return error ? 0 : (count || 0);
   }
 
   async saveDailySnapshot(snapshot_date: string, repositories: TrendingRepository[], created_by?: string): Promise<DailySnapshot> {

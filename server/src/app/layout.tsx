@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import React from 'react';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'GitHub Trend Agent - Central Server',
-  description: 'Central Remote Storage and Auth Server for GitHub Trend Agent',
+  title: 'GitHub Trend Agent - Server Portal & Key Center',
+  description: 'Central Remote Storage, Public Discussion Portal and Client Key Center',
 };
 
 export default function RootLayout({
@@ -12,10 +13,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <html lang="ko">
-      <body style={{ fontFamily: 'system-ui, -apple-system, sans-serif', margin: 0, padding: 0 }}>
-        {children}
-      </body>
+    <html lang="ko" data-color-mode="light" data-light-theme="light">
+      <body>{children}</body>
     </html>
   );
 }
