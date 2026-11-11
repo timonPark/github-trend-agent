@@ -5,6 +5,7 @@ import { ServerHeader, ServerTabType } from '../components/ServerHeader';
 import { DashboardView } from '../components/DashboardView';
 import { KeyCenterView } from '../components/KeyCenterView';
 import { SnapshotExplorer } from '../components/SnapshotExplorer';
+import { PublicDiscussionFeed } from '../components/PublicDiscussionFeed';
 import { AuthModal } from '../components/AuthModal';
 
 interface AuthUser {
@@ -68,13 +69,7 @@ export default function ServerPortalPage(): React.JSX.Element {
 
         {activeTab === 'snapshots' && <SnapshotExplorer />}
 
-        {activeTab === 'feed' && (
-          <div style={{ padding: '60px 20px', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '6px', border: '1px solid #d0d7de', color: '#656d76' }}>
-            <div style={{ fontSize: '36px', marginBottom: '12px' }}>💬</div>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#1f2328', margin: '0 0 6px 0' }}>Public Discussion Feed</h3>
-            <p style={{ fontSize: '13px', margin: 0 }}>공개 AI 토론 아카이브 피드 화면은 Issue #29에서 구현될 예정입니다.</p>
-          </div>
-        )}
+        {activeTab === 'feed' && <PublicDiscussionFeed />}
 
         {activeTab === 'key-center' && (
           <KeyCenterView
