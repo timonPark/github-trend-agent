@@ -35,10 +35,18 @@ describe('Server Auth & Key Verification', (): void => {
 
   describe('Auth API Routes', (): void => {
     it('registers a new user and generates a client_auth_key', async (): Promise<void> => {
-      const req: Request = new Request('http://localhost:4000/api/auth/register', {
+      const missingTermsReq: Request = new Request('http://localhost:4000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: 'timon', password: 'password123' }),
+      });
+      const missingTermsRes: Response = await registerHandler(missingTermsReq);
+      expect(missingTermsRes.status).toBe(400);
+
+      const req: Request = new Request('http://localhost:4000/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'timon', password: 'password123', terms_agreed: true }),
       });
 
       const res: Response = await registerHandler(req);
@@ -46,12 +54,13 @@ describe('Server Auth & Key Verification', (): void => {
       const data: { user: User; token: string } = (await res.json()) as { user: User; token: string };
       expect(data.user.username).toBe('timon');
       expect(data.user.client_auth_key).toMatch(/^gta_live_/);
+      expect(data.user.terms_agreed_at).toBeDefined();
       expect(data.token).toBeDefined();
 
       const dupReq: Request = new Request('http://localhost:4000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'timon', password: 'password456' }),
+        body: JSON.stringify({ username: 'timon', password: 'password456', terms_agreed: true }),
       });
       const dupRes: Response = await registerHandler(dupReq);
       expect(dupRes.status).toBe(409);
@@ -61,7 +70,7 @@ describe('Server Auth & Key Verification', (): void => {
       await registerHandler(new Request('http://localhost:4000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'timon', password: 'password123' }),
+        body: JSON.stringify({ username: 'timon', password: 'password123', terms_agreed: true }),
       }));
 
       const loginReq: Request = new Request('http://localhost:4000/api/auth/login', {
@@ -87,7 +96,7 @@ describe('Server Auth & Key Verification', (): void => {
       const regRes: Response = await registerHandler(new Request('http://localhost:4000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'timon', password: 'password123' }),
+        body: JSON.stringify({ username: 'timon', password: 'password123', terms_agreed: true }),
       }));
       const { user, token }: { user: User; token: string } = (await regRes.json()) as { user: User; token: string };
       const oldKey: string = user.client_auth_key;
