@@ -92,4 +92,10 @@ export interface PlatformStatsResponseDto {
   recent_public_discussions: DiscussionArchive[];
 }
 
+export interface PublicSnapshotResponseDto {
+  snapshot: DailySnapshot | null;
+  available_dates: string[];
+}
+
+
 
