@@ -16,10 +16,13 @@ interface TrendingDashboardProps {
   loadingDate: boolean;
   aiGated: boolean;
   generatingDigestRepo: string | null;
+  bulkGenerating?: boolean;
+  bulkProgress?: { current: number; total: number } | null;
   onRefresh: () => void;
   onDateChange: (date: string) => void;
   onOpenReadme: (repo: TrendingRepository) => void;
   onGenerateDigest: (repo: TrendingRepository) => void;
+  onGenerateAllDigests?: () => void;
   onStartDiscussion: (repo: TrendingRepository) => void;
 }
 
@@ -32,10 +35,13 @@ export function TrendingDashboard({
   loadingDate,
   aiGated,
   generatingDigestRepo,
+  bulkGenerating = false,
+  bulkProgress = null,
   onRefresh,
   onDateChange,
   onOpenReadme,
   onGenerateDigest,
+  onGenerateAllDigests,
   onStartDiscussion,
 }: TrendingDashboardProps): React.JSX.Element {
   const isToday: boolean = isTodayDate(selectedDate);
@@ -50,12 +56,32 @@ export function TrendingDashboard({
           <TrendingCacheBadge source={source} syncedWithServer={syncedWithServer} aiGated={aiGated} />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <TrendingDateSelector selectedDate={selectedDate} loading={loadingDate || scraping} onDateChange={onDateChange} />
+          {!aiGated && repos.length > 0 && onGenerateAllDigests && (
+            <button
+              onClick={onGenerateAllDigests}
+              disabled={bulkGenerating || Boolean(generatingDigestRepo) || scraping || loadingDate}
+              style={{
+                padding: '6px 12px',
+                fontSize: '13px',
+                fontWeight: 600,
+                color: '#ffffff',
+                backgroundColor: bulkGenerating ? '#8c959f' : '#1f883d',
+                border: '1px solid rgba(27, 31, 36, 0.15)',
+                borderRadius: '6px',
+                cursor: bulkGenerating ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {bulkGenerating
+                ? `일괄 요약 중 (${bulkProgress ? `${bulkProgress.current}/${bulkProgress.total}` : '진행 중'})...`
+                : '✨ 전체 일괄 AI 요약 생성'}
+            </button>
+          )}
           {isToday && (
             <button
               onClick={onRefresh}
-              disabled={scraping || loadingDate}
+              disabled={scraping || loadingDate || bulkGenerating}
               style={{
                 padding: '6px 12px',
                 fontSize: '13px',
@@ -64,7 +90,7 @@ export function TrendingDashboard({
                 backgroundColor: '#f6f8fa',
                 border: '1px solid #d0d7de',
                 borderRadius: '6px',
-                cursor: scraping ? 'not-allowed' : 'pointer',
+                cursor: scraping || bulkGenerating ? 'not-allowed' : 'pointer',
               }}
             >
               {scraping ? '수집 중...' : '새로고침 (Scrape)'}

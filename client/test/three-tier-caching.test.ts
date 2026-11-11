@@ -136,22 +136,24 @@ describe('Daily Trending Snapshot 3-Tier Caching (#6)', (): void => {
       return new Response(null, { status: 404 });
     });
 
-    const result: SnapshotFetchResult = await getOrFetchDailySnapshot('2026-11-10', { dbPath: DB_CLIENT_A });
+    const todayStr: string = new Date().toISOString().split('T')[0];
+    const result: SnapshotFetchResult = await getOrFetchDailySnapshot(todayStr, { dbPath: DB_CLIENT_A });
     expect(result.source).toBe('fresh-scraped');
     expect(result.snapshot.repositories).toHaveLength(10);
     expect(result.syncedWithServer).toBe(true);
 
     expect(syncPostPayload).not.toBeNull();
-    expect(syncPostPayload?.snapshot_date).toBe('2026-11-10');
+    expect(syncPostPayload?.snapshot_date).toBe(todayStr);
     expect(syncPostPayload?.repositories).toHaveLength(10);
 
-    const local: LocalSnapshot | null = getLocalSnapshot('2026-11-10', db);
+    const local: LocalSnapshot | null = getLocalSnapshot(todayStr, db);
     expect(local).not.toBeNull();
     expect(local?.source).toBe('local-scraper');
   });
 
   it('Multi-Client Sharing: Client B receives snapshot from Central Server without scraping after Client A initiates', async (): Promise<void> => {
     let centralServerStorage: MockServerPayload | null = null;
+    const todayStr: string = new Date().toISOString().split('T')[0];
 
     const dbA: DatabaseInstance = getClientDb(DB_CLIENT_A);
     setServerAuthKey('gta_live_key_client_a', dbA);
@@ -172,7 +174,7 @@ describe('Daily Trending Snapshot 3-Tier Caching (#6)', (): void => {
       return new Response(null, { status: 500 });
     });
 
-    const resA: SnapshotFetchResult = await getOrFetchDailySnapshot('2026-11-10', { dbPath: DB_CLIENT_A });
+    const resA: SnapshotFetchResult = await getOrFetchDailySnapshot(todayStr, { dbPath: DB_CLIENT_A });
     expect(resA.source).toBe('fresh-scraped');
     expect(centralServerStorage).not.toBeNull();
 
@@ -180,16 +182,40 @@ describe('Daily Trending Snapshot 3-Tier Caching (#6)', (): void => {
     const dbB: DatabaseInstance = getClientDb(DB_CLIENT_B);
     setServerAuthKey('gta_live_key_client_b', dbB);
 
-    expect(getLocalSnapshot('2026-11-10', dbB)).toBeNull();
+    expect(getLocalSnapshot(todayStr, dbB)).toBeNull();
 
-    const resB: SnapshotFetchResult = await getOrFetchDailySnapshot('2026-11-10', { dbPath: DB_CLIENT_B });
+    const resB: SnapshotFetchResult = await getOrFetchDailySnapshot(todayStr, { dbPath: DB_CLIENT_B });
     expect(resB.source).toBe('remote-server');
     expect(resB.snapshot.repositories).toHaveLength(10);
     expect(resB.snapshot.repositories[0].name).toBe(resA.snapshot.repositories[0].name);
 
     const fetchSpy = vi.spyOn(global, 'fetch');
-    const resBAgain: SnapshotFetchResult = await getOrFetchDailySnapshot('2026-11-10', { dbPath: DB_CLIENT_B });
+    const resBAgain: SnapshotFetchResult = await getOrFetchDailySnapshot(todayStr, { dbPath: DB_CLIENT_B });
     expect(resBAgain.source).toBe('local-cache');
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('Past Date Guard: does not scrape fresh data for past dates when neither local nor central server has data (#47)', async (): Promise<void> => {
+    const db: DatabaseInstance = getClientDb(DB_CLIENT_A);
+    setServerAuthKey('gta_live_key_past', db);
+
+    // Mock central server returning 404 for past date
+    global.fetch = vi.fn().mockImplementation(async (url: string): Promise<Response> => {
+      if (url.includes('/api/snapshots')) {
+        return new Response(JSON.stringify({ snapshot: null }), { status: 404 });
+      }
+      return new Response(null, { status: 500 });
+    });
+
+    const pastDate: string = '2020-01-01';
+    const result: SnapshotFetchResult = await getOrFetchDailySnapshot(pastDate, { dbPath: DB_CLIENT_A });
+
+    expect(result.source).toBe('local-cache');
+    expect(result.snapshot.repositories).toHaveLength(0);
+    expect(result.syncedWithServer).toBe(false);
+
+    // Confirm nothing was scraped or saved into local SQLite
+    const savedInDb = getLocalSnapshot(pastDate, db);
+    expect(savedInDb).toBeNull();
   });
 });
