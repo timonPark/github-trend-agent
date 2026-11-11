@@ -1,4 +1,4 @@
-import { LocalSnapshot, TrendingRepository, DiscussionSession, ChatMessage } from '../types';
+import { LocalSnapshot, TrendingRepository, DiscussionSession, ChatMessage, LocalArchive } from '../types';
 import { AiAgentConfig, AiExecutionResult, DetectedCli } from '../ai/types';
 
 /**
@@ -121,3 +121,37 @@ export interface ClientSettingsDto {
   ai_api_key?: string;
   ai_cli_path?: string;
 }
+
+/**
+ * Archive DTOs
+ */
+export interface CreateLocalArchiveRequestDto {
+  id?: string;
+  snapshot_date: string;
+  repo_full_name: string;
+  repo_url: string;
+  repo_digest?: string;
+  discussion_summary?: string;
+  messages: ChatMessage[];
+  is_public: boolean;
+}
+
+export interface CreateLocalArchiveResponseDto {
+  archive: LocalArchive;
+  synced_with_server: boolean;
+}
+
+export interface UpdateArchiveVisibilityRequestDto {
+  id: string;
+  is_public: boolean;
+}
+
+export interface UpdateArchiveVisibilityResponseDto {
+  archive: LocalArchive;
+  synced_with_server: boolean;
+}
+
+export interface GetLocalArchivesResponseDto {
+  archives: LocalArchive[];
+}
+

@@ -2,12 +2,15 @@
 
 import React from 'react';
 import { TrendingRepository } from '../lib/types';
+import { DiscussionDigestBox } from './DiscussionDigestBox';
 
 interface DiscussionHeaderProps {
   repo: TrendingRepository;
   allRepos: TrendingRepository[];
   onSelectRepo: (repo: TrendingRepository) => void;
   onOpenReadme: (repo: TrendingRepository) => void;
+  onOpenArchiveModal?: () => void;
+  messagesCount?: number;
 }
 
 function RepoSelector({
@@ -32,24 +35,11 @@ function RepoSelector({
     <select
       value={repo.full_name}
       onChange={handleChange}
-      style={{
-        padding: '6px 10px',
-        fontSize: '14px',
-        fontWeight: 600,
-        borderRadius: '6px',
-        border: '1px solid #d0d7de',
-        backgroundColor: '#ffffff',
-        color: '#1f2328',
-        cursor: 'pointer',
-      }}
+      style={{ padding: '6px 10px', fontSize: '14px', fontWeight: 600, borderRadius: '6px', border: '1px solid #d0d7de', backgroundColor: '#ffffff', color: '#1f2328', cursor: 'pointer' }}
     >
-      {allRepos.map(
-        (r: TrendingRepository): React.JSX.Element => (
-          <option key={r.full_name} value={r.full_name}>
-            #{r.rank} {r.full_name}
-          </option>
-        )
-      )}
+      {allRepos.map((r: TrendingRepository): React.JSX.Element => (
+        <option key={r.full_name} value={r.full_name}>#{r.rank} {r.full_name}</option>
+      ))}
     </select>
   );
 }
@@ -60,38 +50,57 @@ function RepoMetaBadges({ repo }: { repo: TrendingRepository }): React.JSX.Eleme
       {repo.language && <span>🔹 {repo.language}</span>}
       <span>★ {repo.total_stars.toLocaleString()}</span>
       <span style={{ color: '#1a7f37', fontWeight: 600 }}>▲ +{repo.daily_stars.toLocaleString()} today</span>
-      <a
-        href={repo.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{ color: '#0969da', textDecoration: 'none', fontWeight: 500 }}
-      >
+      <a href={repo.url} target="_blank" rel="noopener noreferrer" style={{ color: '#0969da', textDecoration: 'none', fontWeight: 500 }}>
         GitHub ↗
       </a>
     </div>
   );
 }
 
-function DigestBox({ digest }: { digest?: string }): React.JSX.Element | null {
-  if (!digest) {
-    return null;
-  }
+function ActionButtons({
+  onOpenReadme,
+  onOpenArchiveModal,
+  messagesCount,
+}: {
+  onOpenReadme: () => void;
+  onOpenArchiveModal?: () => void;
+  messagesCount: number;
+}): React.JSX.Element {
   return (
-    <div
-      style={{
-        marginTop: '12px',
-        padding: '10px 14px',
-        backgroundColor: '#f6f8fa',
-        borderRadius: '6px',
-        border: '1px solid #e1e4e8',
-        fontSize: '13px',
-        color: '#1f2328',
-        lineHeight: 1.5,
-        whiteSpace: 'pre-line',
-      }}
-    >
-      <div style={{ fontWeight: 600, color: '#0969da', marginBottom: '4px' }}>📋 Repository Digest (3줄 요약)</div>
-      {digest}
+    <div style={{ display: 'flex', gap: '8px' }}>
+      <button
+        onClick={onOpenReadme}
+        style={{
+          padding: '6px 12px',
+          fontSize: '13px',
+          borderRadius: '6px',
+          border: '1px solid #d0d7de',
+          backgroundColor: '#f6f8fa',
+          color: '#1f2328',
+          cursor: 'pointer',
+          fontWeight: 500,
+        }}
+      >
+        📖 README
+      </button>
+      {onOpenArchiveModal && (
+        <button
+          onClick={onOpenArchiveModal}
+          disabled={messagesCount === 0}
+          style={{
+            padding: '6px 12px',
+            fontSize: '13px',
+            fontWeight: 600,
+            borderRadius: '6px',
+            border: '1px solid rgba(27,31,36,0.15)',
+            backgroundColor: messagesCount === 0 ? '#f6f8fa' : '#0969da',
+            color: messagesCount === 0 ? '#8c959f' : '#ffffff',
+            cursor: messagesCount === 0 ? 'not-allowed' : 'pointer',
+          }}
+        >
+          📦 토론 종료 및 보관
+        </button>
+      )}
     </div>
   );
 }
@@ -101,6 +110,8 @@ export function DiscussionHeader({
   allRepos,
   onSelectRepo,
   onOpenReadme,
+  onOpenArchiveModal,
+  messagesCount = 0,
 }: DiscussionHeaderProps): React.JSX.Element {
   return (
     <div
@@ -114,28 +125,16 @@ export function DiscussionHeader({
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <RepoSelector repo={repo} allRepos={allRepos} onSelectRepo={onSelectRepo} />
-          </div>
+          <RepoSelector repo={repo} allRepos={allRepos} onSelectRepo={onSelectRepo} />
           <RepoMetaBadges repo={repo} />
         </div>
-        <button
-          onClick={(): void => onOpenReadme(repo)}
-          style={{
-            padding: '6px 12px',
-            fontSize: '13px',
-            borderRadius: '6px',
-            border: '1px solid #d0d7de',
-            backgroundColor: '#f6f8fa',
-            color: '#1f2328',
-            cursor: 'pointer',
-            fontWeight: 500,
-          }}
-        >
-          📖 README 원문 보기
-        </button>
+        <ActionButtons
+          onOpenReadme={(): void => onOpenReadme(repo)}
+          onOpenArchiveModal={onOpenArchiveModal}
+          messagesCount={messagesCount}
+        />
       </div>
-      <DigestBox digest={repo.digest} />
+      <DiscussionDigestBox digest={repo.digest} />
     </div>
   );
 }

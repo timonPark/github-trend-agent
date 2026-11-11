@@ -1,4 +1,4 @@
-import { DailySnapshot, TrendingRepository } from '../types';
+import { DailySnapshot, TrendingRepository, DiscussionArchive, ChatMessage } from '../types';
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -55,3 +55,32 @@ export interface SaveSnapshotRequestDto {
   snapshot_date: string;
   repositories: TrendingRepository[];
 }
+
+export interface CreateArchiveRequestDto {
+  id?: string;
+  snapshot_date: string;
+  repo_full_name: string;
+  repo_url: string;
+  repo_digest?: string;
+  discussion_summary: string;
+  messages: ChatMessage[];
+  is_public: boolean;
+}
+
+export interface CreateArchiveResponseDto {
+  archive: DiscussionArchive;
+}
+
+export interface UpdateArchiveVisibilityRequestDto {
+  id: string;
+  is_public: boolean;
+}
+
+export interface UpdateArchiveVisibilityResponseDto {
+  archive: DiscussionArchive;
+}
+
+export interface GetArchivesResponseDto {
+  archives: DiscussionArchive[];
+}
+

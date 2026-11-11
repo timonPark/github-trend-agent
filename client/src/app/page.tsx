@@ -331,8 +331,10 @@ export default function ClientHomePage(): React.JSX.Element {
             initialRepo={selectedDiscussionRepo}
             allRepos={trendingRepos}
             aiGated={aiConfig.provider === 'none'}
+            snapshotDate={selectedDate}
             onOpenReadme={handleOpenReadme}
             onGoToSettings={(): void => setActiveTab('settings')}
+            onGoToArchives={(): void => setActiveTab('archives')}
           />
         )}
 
