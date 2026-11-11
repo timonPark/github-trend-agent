@@ -69,7 +69,198 @@ flowchart TB
 
 ---
 
-## 4. 기술 스택
+## 4. 데이터베이스 아키텍처 및 ERD (Dual-DB Model)
+
+본 프로젝트는 **중앙 서버(Supabase PostgreSQL)**와 **클라이언트(로컬 SQLite)**가 독립된 역할을 수행하면서 안전하게 동기화되는 **Dual-DB 분산 아키텍처**를 채택하고 있습니다.
+
+### 4.1. 중앙 서버 ERD (Supabase PostgreSQL)
+
+중앙 서버는 모든 사용자의 계정 인증, 일일 스냅샷 공유 풀, 그리고 공개/비공개 토론 아카이브의 영구 보존소 역할을 담당합니다.
+
+```mermaid
+erDiagram
+    USERS ||--o{ DISCUSSION_ARCHIVES : "owns (1:N)"
+    USERS ||--o{ DAILY_SNAPSHOTS : "publishes (1:N, optional)"
+    DAILY_SNAPSHOTS ||--o{ DISCUSSION_ARCHIVES : "associated_with (1:N)"
+
+    USERS {
+        uuid id PK "기본키 (UUID)"
+        text username UK "고유 사용자명"
+        text password_hash "비밀번호 해시 (bcrypt)"
+        text client_auth_key UK "클라이언트 연동 인증키 (UUID)"
+        timestamptz created_at "계정 생성 일시"
+    }
+
+    DAILY_SNAPSHOTS {
+        text snapshot_date PK "일자 키 (YYYY-MM-DD, 00:00 기준)"
+        jsonb repositories "TOP 10 레포 및 AI 요약 목록"
+        text created_by FK "최초 등록자 (users.username)"
+        timestamptz updated_at "스냅샷 갱신 일시"
+    }
+
+    DISCUSSION_ARCHIVES {
+        text id PK "아카이브 고유 ID"
+        text user_id FK "소유자 계정 ID (users.id)"
+        text username "작성자 표시명"
+        text snapshot_date FK "대상 스냅샷 일자 (YYYY-MM-DD)"
+        text repo_full_name "저장소 전체명 (owner/repo)"
+        text repo_url "저장소 웹 주소"
+        text repo_digest "저장소 핵심 AI 요약"
+        text discussion_summary "AI 토론 최종 결론 요약"
+        jsonb messages "대화 메시지 전문 배열"
+        boolean is_public "공개 피드 노출 여부 (true/false)"
+        timestamptz created_at "아카이브 생성 일시"
+    }
+```
+
+#### 중앙 서버 테이블 상세 명세
+
+| 테이블명 | 컬럼명 | 데이터 타입 | 제약 조건 | 설명 |
+| :--- | :--- | :--- | :--- | :--- |
+| **`users`** | `id` | `uuid` | PK, Default `gen_random_uuid()` | 계정 고유 식별자 |
+| | `username` | `text` | UNIQUE, NOT NULL | 사용자 로그인 아이디 |
+| | `password_hash` | `text` | NOT NULL | 단방향 해시 암호화 비밀번호 |
+| | `client_auth_key` | `text` | UNIQUE, NOT NULL | 클라이언트 연동용 개인 인증키 (`X-Client-Auth-Key`) |
+| | `created_at` | `timestamptz` | NOT NULL, Default `now()` | 계정 생성 일시 |
+| **`daily_snapshots`** | `snapshot_date` | `text` | PK | 일자 키 (포맷: `YYYY-MM-DD`, 00:00 정각 기준) |
+| | `repositories` | `jsonb` | NOT NULL | 당일 GitHub Star TOP 10 레포지토리 및 AI 요약 배열 |
+| | `created_by` | `text` | NULLABLE | 해당 일자 스냅샷을 최초로 등록한 클라이언트 유저명 |
+| | `updated_at` | `timestamptz` | NOT NULL, Default `now()` | 스냅샷 최종 갱신 일시 |
+| **`discussion_archives`** | `id` | `text` | PK | 아카이브 고유 식별자 (`nanoid` / `uuid`) |
+| | `user_id` | `text` | FK (`users.id`), NOT NULL | 아카이브 소유자의 계정 ID |
+| | `username` | `text` | NOT NULL | 아카이브 작성자 화면 표시명 |
+| | `snapshot_date` | `text` | FK (`daily_snapshots.snapshot_date`) | 토론 대상 스냅샷 일자 |
+| | `repo_full_name` | `text` | NOT NULL | 토론 대상 저장소 (`owner/repo`) |
+| | `repo_url` | `text` | NOT NULL | GitHub 저장소 원본 URL |
+| | `repo_digest` | `text` | NOT NULL | 저장소 최초 핵심 요약 (Digest) |
+| | `discussion_summary` | `text` | NOT NULL | AI 에이전트와 나눈 토론의 결론 정리 요약 |
+| | `messages` | `jsonb` | NOT NULL | 실시간 토론 대화 메시지 전문 (`role`, `content`, `timestamp`) |
+| | `is_public` | `boolean` | NOT NULL, Default `false` | 중앙 서버 공개 피드(`Public Discussion Feed`) 노출 여부 |
+| | `created_at` | `timestamptz` | NOT NULL, Default `now()` | 아카이브 생성 및 영구 저장 일시 |
+
+> [!NOTE]
+> **Epic 6 계정 인증 고도화 (#49) 예정 컬럼**: 소셜 로그인(GitHub/Google/Kakao/Naver) 및 비밀번호 찾기 연동에 따라 `users` 테이블에 `email (text)`, `oauth_provider (text)`, `oauth_id (text)` 필드가 순차적으로 확장 적용될 예정입니다.
+
+---
+
+### 4.2. 클라이언트 로컬 ERD (SQLite)
+
+클라이언트는 사용자의 개인 PC 환경에서 구동되며, 불필요한 네트워크 트래픽을 방지하고 빠른 UI 응답성을 위해 로컬 SQLite(`client.db`)를 운용합니다.
+
+```mermaid
+erDiagram
+    LOCAL_SNAPSHOTS ||--o{ LOCAL_ARCHIVES : "referenced_by (1:N)"
+    DISCUSSION_SESSIONS ||--o| LOCAL_ARCHIVES : "graduates_to (1:0..1)"
+
+    USER_SETTINGS {
+        text key PK "설정 키 (server_auth_key, preferred_model 등)"
+        text value "설정값 문자열"
+        text updated_at "최종 갱신 일시 (ISO-8601)"
+    }
+
+    LOCAL_SNAPSHOTS {
+        text snapshot_date PK "스냅샷 일자 (YYYY-MM-DD)"
+        text repositories "TOP 10 저장소 및 요약 (JSON 문자열)"
+        text source "수집 출처 (local-scraper | remote-server)"
+        text created_at "로컬 캐싱 일시 (ISO-8601)"
+    }
+
+    DISCUSSION_SESSIONS {
+        text id PK "실시간 세션 ID (nanoid / UUID)"
+        text repo_full_name "저장소 전체명 (owner/repo)"
+        text repo_url "저장소 웹 주소"
+        text messages "실시간 대화 내역 (JSON 문자열)"
+        text created_at "세션 개설 일시 (ISO-8601)"
+        text updated_at "세션 최종 대화 일시 (ISO-8601)"
+    }
+
+    LOCAL_ARCHIVES {
+        text id PK "로컬 아카이브 ID"
+        text user_id "사용자 계정 식별자"
+        text snapshot_date FK "스냅샷 일자 (YYYY-MM-DD)"
+        text repo_full_name "저장소 전체명 (owner/repo)"
+        text repo_url "저장소 웹 주소"
+        text repo_digest "저장소 핵심 AI 요약"
+        text discussion_summary "AI 토론 최종 결론 요약"
+        text messages "대화 내역 전문 (JSON 문자열)"
+        integer is_public "공개 여부 플래그 (0: 비공개, 1: 공개)"
+        integer synced_with_server "중앙 서버 동기화 상태 (0: 미동기화, 1: 동기화완료)"
+        text created_at "로컬 보관 일시 (ISO-8601)"
+    }
+```
+
+#### 클라이언트 테이블 상세 명세
+
+| 테이블명 | 컬럼명 | 데이터 타입 | 제약 조건 | 설명 |
+| :--- | :--- | :--- | :--- | :--- |
+| **`user_settings`** | `key` | `TEXT` | PK | 로컬 환경 설정 키 (`server_auth_key`, `preferred_model` 등) |
+| | `value` | `TEXT` | NOT NULL | 환경 설정 값 |
+| | `updated_at` | `TEXT` | NOT NULL | 설정 변경 일시 |
+| **`local_snapshots`** | `snapshot_date` | `TEXT` | PK | 일자 키 (`YYYY-MM-DD`) |
+| | `repositories` | `TEXT` | NOT NULL | 일일 TOP 10 저장소 및 Digest JSON 문자열 (Tier 1 로컬 캐시) |
+| | `source` | `TEXT` | NOT NULL | 수집 출처 (`local-scraper`: 로컬 헤드리스 수집, `remote-server`: 중앙 서버 동기화) |
+| | `created_at` | `TEXT` | NOT NULL | 로컬 저장 일시 |
+| **`discussion_sessions`** | `id` | `TEXT` | PK | 진행 중인 실시간 AI 토론 세션 ID |
+| | `repo_full_name` | `TEXT` | NOT NULL | 토론 대상 레포 (`owner/repo`) |
+| | `repo_url` | `TEXT` | NOT NULL | GitHub 저장소 링크 |
+| | `messages` | `TEXT` | NOT NULL | 실시간 대화 메시지 목록 JSON 문자열 |
+| | `created_at` | `TEXT` | NOT NULL | 세션 개설 일시 |
+| | `updated_at` | `TEXT` | NOT NULL | 세션 대화 갱신 일시 |
+| **`local_archives`** | `id` | `TEXT` | PK | 완료된 토론 아카이브 ID |
+| | `user_id` | `TEXT` | NOT NULL | 로컬 사용자 식별자 |
+| | `snapshot_date` | `TEXT` | FK (`local_snapshots.snapshot_date`) | 대상 스냅샷 일자 |
+| | `repo_full_name` | `TEXT` | NOT NULL | 토론 대상 레포 |
+| | `repo_url` | `TEXT` | NOT NULL | GitHub 저장소 링크 |
+| | `repo_digest` | `TEXT` | NOT NULL | 저장소 AI 요약 |
+| | `discussion_summary` | `TEXT` | NOT NULL | AI 토론 결론 요약 |
+| | `messages` | `TEXT` | NOT NULL | 전체 대화 내역 JSON 문자열 |
+| | `is_public` | `INTEGER` | NOT NULL, Default `0` | 공개 여부 (`0`: 비공개, `1`: 공개) |
+| | `synced_with_server`| `INTEGER` | NOT NULL, Default `0` | 중앙 서버 동기화 성공 여부 (`0`: 미동기화, `1`: 동기화완료) |
+| | `created_at` | `TEXT` | NOT NULL | 아카이브 생성 일시 |
+
+---
+
+### 4.3. Dual-DB 동기화 매핑 및 데이터 흐름
+
+```mermaid
+flowchart LR
+    subgraph ClientDB["Client Local SQLite (:3000)"]
+        direction TB
+        LS["local_snapshots\n(Tier 1 Cache)"]
+        US["user_settings\n('server_auth_key')"]
+        DS["discussion_sessions\n(Active Chat)"]
+        LA["local_archives\n(Local Storage)"]
+
+        DS -->|토론 종료 시 정리| LA
+        LS -.->|참조| LA
+    end
+
+    subgraph ServerDB["Central Server PostgreSQL (:4000)"]
+        direction TB
+        USERS["users\n(Account & Auth Key)"]
+        SS["daily_snapshots\n(Shared Pool)"]
+        SA["discussion_archives\n(Public Feed & Cloud Vault)"]
+
+        USERS -->|1:N 조인| SA
+        USERS -.->|최초 등록자| SS
+        SS -.->|참조| SA
+    end
+
+    US <-->|"1. 인증 검증\n(X-Client-Auth-Key = client_auth_key)"| USERS
+    LS <-->|"2. 스냅샷 동기화\n(Tier 2 조회 및 Tier 3 공유 등록)"| SS
+    LA <-->|"3. 아카이브 동기화 & 공개 피드 반영\n(is_public / summary 동기화)"| SA
+```
+
+| 동기화 계층 | 클라이언트 로컬 (SQLite) | 중앙 서버 (PostgreSQL) | 동기화 동작 및 비즈니스 규칙 |
+| :--- | :--- | :--- | :--- |
+| **인증 연동** | `user_settings.server_auth_key` | `users.client_auth_key` | 클라이언트가 설정한 키를 통해 중앙 서버 API 호출 시 계정을 식별하고 권한을 부여받습니다. |
+| **스냅샷 공유** | `local_snapshots` | `daily_snapshots` | **Tier 1 (로컬 SQLite)** 확인 → 없으면 **Tier 2 (중앙 서버)** 조회 후 로컬에 복제 캐시 저장 → 중앙 서버에도 없으면 **Tier 3 (클라이언트 1회 헤드리스 수집)** 후 중앙 서버와 로컬에 동시 등록합니다. |
+| **아카이브 영속화** | `local_archives` | `discussion_archives` | 토론 세션(`discussion_sessions`) 완료 시 로컬 아카이브를 생성하고, 중앙 서버로 전송하여 클라우드에 영구 백업(`synced_with_server=1`)합니다. |
+| **공개 피드 공유** | `local_archives.is_public` | `discussion_archives.is_public` | 사용자가 공개로 전환하면 중앙 서버의 `Public Discussion Feed`에 즉시 반영되어 다른 모든 개발자가 열람할 수 있습니다. |
+
+---
+
+## 5. 기술 스택
 
 | 구분 | 구성 요소 | 기술 스택 | 역할 |
 | :--- | :--- | :--- | :--- |
@@ -84,7 +275,7 @@ flowchart TB
 
 ---
 
-## 5. 도메인 및 아키텍처 문서
+## 6. 도메인 및 아키텍처 문서
 
 - **도메인 용어집**: [`GLOSSARY.md`](./GLOSSARY.md)
   - `Daily Trending Snapshot`, `Trending Repository`, `Repository Digest`, `Discussion Session`, `Discussion Archive`, `Snapshot Explorer`, `Public Discussion Feed`, `User`, `Local AI Agent`
@@ -94,11 +285,13 @@ flowchart TB
   - [`0003-headless-cli-ai-and-capability-gating.md`](./docs/adr/0003-headless-cli-ai-and-capability-gating.md): 클라이언트 AI 모델 연동 및 미연동 사용자 기능 제한
   - [`0004-nextjs-supabase-vercel-for-remote-server.md`](./docs/adr/0004-nextjs-supabase-vercel-for-remote-server.md): 중앙 서버 Next.js 공개 웹 포털 + Supabase + Vercel 채택
   - [`0005-nextjs-and-sqlite-for-local-client.md`](./docs/adr/0005-nextjs-and-sqlite-for-local-client.md): 클라이언트 로컬 서버 Next.js + SQLite + `@primer/primitives` 채택
+- **운영 및 가이드 문서**:
+  - [`docs/oauth-provider-setup.md`](./docs/oauth-provider-setup.md): 소셜 로그인(OAuth) 4대 제공자(GitHub, Google, Kakao, Naver) 설정 및 배포 가이드
 - **에이전트 개발 규칙**: [`AGENTS.md`](./AGENTS.md)
 
 ---
 
-## 6. 개발 워크플로우 규칙
+## 7. 개발 워크플로우 규칙
 
 본 저장소의 모든 작업은 [`AGENTS.md`](./AGENTS.md)에 정의된 5단계 절차를 따릅니다:
 
