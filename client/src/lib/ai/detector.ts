@@ -12,7 +12,7 @@ const CLI_TARGETS: CliTarget[] = [
   { id: 'claude', name: 'Claude Code CLI', command: 'claude' },
   { id: 'gemini', name: 'Google Gemini / AGY CLI', command: 'gemini', alternativeCommands: ['agy', 'antigravity'] },
   { id: 'ollama', name: 'Ollama Local LLM', command: 'ollama' },
-  { id: 'openai', name: 'OpenAI CLI', command: 'openai' },
+  { id: 'openai', name: 'OpenAI / Codex CLI', command: 'codex', alternativeCommands: ['openai'] },
 ];
 
 function findBinary(command: string): string {
