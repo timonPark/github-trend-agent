@@ -1,9 +1,24 @@
+export type OAuthProvider = 'github' | 'google' | 'kakao' | 'naver' | 'local';
+
 export interface User {
   id: string;
   username: string;
-  password_hash: string;
+  password_hash?: string | null;
   client_auth_key: string;
+  email?: string | null;
+  oauth_provider?: OAuthProvider | null;
+  oauth_id?: string | null;
+  terms_agreed_at?: string | null;
   created_at: string;
+}
+
+export interface CreateOAuthUserParams {
+  username: string;
+  oauth_provider: OAuthProvider;
+  oauth_id: string;
+  email?: string | null;
+  terms_agreed_at?: string | null;
+  client_auth_key?: string;
 }
 
 export interface TrendingRepository {

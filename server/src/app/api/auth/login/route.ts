@@ -30,7 +30,7 @@ export async function POST(request: Request): Promise<NextResponse<LoginResponse
 
     const db: ServerDbAdapter = getServerDb();
     const user: User | null = await db.findUserByUsername(username.trim());
-    if (!user) {
+    if (!user || !user.password_hash) {
       return NextResponse.json<LoginResponsePayload>(
         { error: 'Invalid username or password' },
         { status: 401 }

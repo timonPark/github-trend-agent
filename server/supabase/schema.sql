@@ -4,12 +4,19 @@
 create table if not exists public.users (
   id uuid primary key default gen_random_uuid(),
   username text unique not null,
-  password_hash text not null,
+  password_hash text,                  -- Optional for OAuth users
   client_auth_key text unique not null, -- Key used by client to authenticate with central server
-  created_at timestamptz not null default now()
+  email text,
+  oauth_provider text,                 -- 'github' | 'google' | 'kakao' | 'naver' | 'local'
+  oauth_id text,
+  terms_agreed_at timestamptz,
+  created_at timestamptz not null default now(),
+  constraint uq_users_oauth unique (oauth_provider, oauth_id)
 );
 
 create index if not exists idx_users_client_auth_key on public.users(client_auth_key);
+create index if not exists idx_users_email on public.users(email);
+create index if not exists idx_users_oauth on public.users(oauth_provider, oauth_id);
 
 -- 2. Daily Trending Snapshots Table (Shared across all clients per date)
 create table if not exists public.daily_snapshots (
