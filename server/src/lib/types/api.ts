@@ -84,3 +84,12 @@ export interface GetArchivesResponseDto {
   archives: DiscussionArchive[];
 }
 
+export interface PlatformStatsResponseDto {
+  snapshot_count: number;
+  public_archive_count: number;
+  total_user_count: number;
+  today_top3: TrendingRepository[];
+  recent_public_discussions: DiscussionArchive[];
+}
+
+
