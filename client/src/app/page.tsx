@@ -5,6 +5,7 @@ import Header from '../components/Header';
 import { AuthGate } from '../components/AuthGate';
 import { TrendingDashboard } from '../components/TrendingDashboard';
 import { DiscussionWorkspace } from '../components/DiscussionWorkspace';
+import { LocalArchiveViewer } from '../components/LocalArchiveViewer';
 import { SettingsTab } from '../components/SettingsTab';
 import { ReadmeModal } from '../components/ReadmeModal';
 import { TrendingRepository } from '../lib/types';
@@ -338,11 +339,7 @@ export default function ClientHomePage(): React.JSX.Element {
           />
         )}
 
-        {activeTab === 'archives' && (
-          <div style={{ padding: '40px', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '6px', border: '1px solid #d0d7de', color: '#656d76' }}>
-            토론 아카이브 뷰어는 곧 제공될 예정입니다. (Epic 4 #12)
-          </div>
-        )}
+        {activeTab === 'archives' && <LocalArchiveViewer />}
 
         {activeTab === 'settings' && (
           <SettingsTab
