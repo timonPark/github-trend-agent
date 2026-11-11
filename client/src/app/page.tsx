@@ -222,9 +222,11 @@ export default function ClientHomePage(): React.JSX.Element {
     );
   }
 
-  const isAuthenticated: boolean = Boolean(authStatus?.valid || (authStatus as { authenticated?: boolean })?.authenticated);
+  const isAuth: boolean = Boolean(
+    authStatus && (authStatus.valid || (authStatus as { authenticated?: boolean }).authenticated)
+  );
 
-  if (!isAuthenticated) {
+  if (!isAuth) {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#f6f8fa', padding: '40px 20px' }}>
         <AuthGate onAuthenticated={loadInitialData} />
@@ -235,7 +237,7 @@ export default function ClientHomePage(): React.JSX.Element {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f6f8fa' }}>
       <Header
-        username={authStatus.email || 'Client User'}
+        username={authStatus?.email || 'Client User'}
         onOpenSettings={(): void => setActiveTab('settings')}
       />
 

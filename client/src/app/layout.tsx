@@ -1,5 +1,4 @@
 import './globals.css';
-import Header from '../components/Header';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -15,7 +14,6 @@ export default function RootLayout({
   return (
     <html lang="ko" data-color-mode="light" data-light-theme="light" data-dark-theme="dark">
       <body className="min-h-screen bg-[var(--bgColor-default)] text-[var(--fgColor-default)] flex flex-col">
-        <Header />
         <div className="flex-1">
           {children}
         </div>
