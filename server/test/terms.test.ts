@@ -30,7 +30,7 @@ describe('Terms of Service and Privacy Policy Module', (): void => {
       new Request('http://localhost:4000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'termstest1', password: 'password123' }),
+        body: JSON.stringify({ username: 'termstest1', email: 'termstest1@example.com', password: 'password123' }),
       })
     );
     expect(resOmitted.status).toBe(400);
@@ -41,7 +41,7 @@ describe('Terms of Service and Privacy Policy Module', (): void => {
       new Request('http://localhost:4000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'termstest2', password: 'password123', terms_agreed: false }),
+        body: JSON.stringify({ username: 'termstest2', email: 'termstest2@example.com', password: 'password123', terms_agreed: false }),
       })
     );
     expect(resFalse.status).toBe(400);
@@ -52,7 +52,7 @@ describe('Terms of Service and Privacy Policy Module', (): void => {
       new Request('http://localhost:4000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'agreeduser', password: 'password123', terms_agreed: true }),
+        body: JSON.stringify({ username: 'agreeduser', email: 'agreeduser@example.com', password: 'password123', terms_agreed: true }),
       })
     );
     expect(res.status).toBe(201);

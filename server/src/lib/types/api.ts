@@ -32,6 +32,25 @@ export interface LoginResponseDto {
   client_auth_key: string;
 }
 
+export interface ForgotPasswordRequestDto {
+  email: string;
+}
+
+export interface ForgotPasswordResponseDto {
+  message: string;
+  reset_token?: string;
+  reset_url?: string;
+}
+
+export interface ResetPasswordRequestDto {
+  token: string;
+  new_password: string;
+}
+
+export interface ResetPasswordResponseDto {
+  message: string;
+}
+
 export interface VerifyKeyRequestDto {
   client_auth_key: string;
 }

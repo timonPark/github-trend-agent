@@ -61,6 +61,7 @@ export interface ServerDatabase {
   findUserByOAuth(oauth_provider: string, oauth_id: string): Promise<User | null>;
   findUserByClientAuthKey(client_auth_key: string): Promise<User | null>;
   rotateClientAuthKey(user_id: string): Promise<string>;
+  updateUserPassword(user_id: string, password_hash: string): Promise<User>;
   getDailySnapshot(snapshot_date: string): Promise<DailySnapshot | null>;
   listDailySnapshots(): Promise<DailySnapshot[]>;
   countUsers(): Promise<number>;
@@ -228,6 +229,17 @@ class MemoryServerDatabase implements ServerDatabase {
     user.client_auth_key = newKey;
     this.syncToDisk();
     return newKey;
+  }
+
+  async updateUserPassword(user_id: string, password_hash: string): Promise<User> {
+    this.syncFromDisk();
+    const user: User | undefined = this.users.get(user_id);
+    if (!user) {
+      throw new Error('User not found');
+    }
+    user.password_hash = password_hash;
+    this.syncToDisk();
+    return user;
   }
 
   async getDailySnapshot(snapshot_date: string): Promise<DailySnapshot | null> {
@@ -429,6 +441,19 @@ class SupabaseServerDatabase implements ServerDatabase {
       throw new Error(error.message);
     }
     return newKey;
+  }
+
+  async updateUserPassword(user_id: string, password_hash: string): Promise<User> {
+    const { data, error } = await this.client
+      .from('users')
+      .update({ password_hash })
+      .eq('id', user_id)
+      .select()
+      .single();
+    if (error) {
+      throw new Error(error.message);
+    }
+    return data as User;
   }
 
   async getDailySnapshot(snapshot_date: string): Promise<DailySnapshot | null> {

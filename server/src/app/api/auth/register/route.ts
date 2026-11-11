@@ -9,6 +9,7 @@ interface AuthResponsePayload {
   user?: {
     id: string;
     username: string;
+    email?: string | null;
     client_auth_key: string;
     terms_agreed_at?: string | null;
     created_at: string;
@@ -17,10 +18,15 @@ interface AuthResponsePayload {
   error?: string;
 }
 
+const EMAIL_REGEX: RegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function validateRegisterInput(body: RegisterRequestDto): string | null {
-  const { username, password, terms_agreed } = body;
+  const { username, password, email, terms_agreed } = body;
   if (!username || typeof username !== 'string' || username.trim().length < 3) {
     return 'Username must be at least 3 characters long';
+  }
+  if (!email || typeof email !== 'string' || !EMAIL_REGEX.test(email.trim())) {
+    return '유효한 이메일 주소를 입력해주세요.';
   }
   if (!password || typeof password !== 'string' || password.length < 6) {
     return 'Password must be at least 6 characters long';
@@ -31,12 +37,27 @@ function validateRegisterInput(body: RegisterRequestDto): string | null {
   return null;
 }
 
+async function checkDuplicateUser(db: ServerDbAdapter, username: string, email: string): Promise<string | null> {
+  const existingUsername: User | null = await db.findUserByUsername(username);
+  if (existingUsername) return 'Username is already taken';
+  const existingEmail: User | null = await db.findUserByEmail(email);
+  if (existingEmail) return '이미 등록된 이메일 주소입니다.';
+  return null;
+}
+
+async function registerNewUser(db: ServerDbAdapter, body: RegisterRequestDto): Promise<User> {
+  const passwordHash: string = hashPassword(body.password as string);
+  const termsAgreedAt: string = new Date().toISOString();
+  return db.createUser(body.username.trim(), passwordHash, undefined, body.email!.trim(), termsAgreedAt);
+}
+
 function createAuthCookieResponse(user: User, token: string): NextResponse<AuthResponsePayload> {
   const response: NextResponse<AuthResponsePayload> = NextResponse.json<AuthResponsePayload>(
     {
       user: {
         id: user.id,
         username: user.username,
+        email: user.email,
         client_auth_key: user.client_auth_key,
         terms_agreed_at: user.terms_agreed_at,
         created_at: user.created_at,
@@ -66,16 +87,13 @@ export async function POST(request: Request): Promise<NextResponse<AuthResponseP
     }
 
     const db: ServerDbAdapter = getServerDb();
-    const existing: User | null = await db.findUserByUsername(body.username.trim());
-    if (existing) {
-      return NextResponse.json<AuthResponsePayload>({ error: 'Username is already taken' }, { status: 409 });
+    const dupError: string | null = await checkDuplicateUser(db, body.username.trim(), body.email!.trim());
+    if (dupError) {
+      return NextResponse.json<AuthResponsePayload>({ error: dupError }, { status: 409 });
     }
 
-    const passwordHash: string = hashPassword(body.password as string);
-    const termsAgreedAt: string = new Date().toISOString();
-    const user: User = await db.createUser(body.username.trim(), passwordHash, undefined, body.email?.trim(), termsAgreedAt);
+    const user: User = await registerNewUser(db, body);
     const token: string = createSessionToken(user.id, user.username);
-
     return createAuthCookieResponse(user, token);
   } catch (err: unknown) {
     return NextResponse.json<AuthResponsePayload>({ error: toErrorMessage(err) }, { status: 500 });
