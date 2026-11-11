@@ -16,5 +16,8 @@
     "test:server": "pnpm --filter server test",
     "test:client": "pnpm --filter client test",
     "test": "pnpm -r test"
+  },
+  "devDependencies": {
+    "node-gyp": "^11.1.0"
   }
 }
