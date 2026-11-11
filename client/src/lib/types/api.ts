@@ -1,4 +1,4 @@
-import { LocalSnapshot, TrendingRepository } from '../types';
+import { LocalSnapshot, TrendingRepository, DiscussionSession, ChatMessage } from '../types';
 import { AiAgentConfig, AiExecutionResult, DetectedCli } from '../ai/types';
 
 /**
@@ -69,6 +69,27 @@ export interface GenerateDigestResponseDto {
   provider: AiAgentConfig['provider'];
   model: string;
   synced_with_server: boolean;
+}
+
+/**
+ * Discussion Session DTOs
+ */
+export interface GetDiscussionResponseDto {
+  session: DiscussionSession;
+  isGated: boolean;
+}
+
+export interface SendDiscussionMessageRequestDto {
+  repo_full_name: string;
+  repo_url: string;
+  message: string;
+  digest?: string;
+  readme?: string;
+}
+
+export interface SendDiscussionMessageResponseDto {
+  session: DiscussionSession;
+  latest_message: ChatMessage;
 }
 
 /**

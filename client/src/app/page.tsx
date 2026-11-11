@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Header from '../components/Header';
 import { AuthGate } from '../components/AuthGate';
 import { TrendingDashboard } from '../components/TrendingDashboard';
+import { DiscussionWorkspace } from '../components/DiscussionWorkspace';
 import { SettingsTab } from '../components/SettingsTab';
 import { ReadmeModal } from '../components/ReadmeModal';
 import { TrendingRepository } from '../lib/types';
@@ -52,6 +53,7 @@ export default function ClientHomePage(): React.JSX.Element {
   const [readmeLoading, setReadmeLoading] = useState<boolean>(false);
   const [readmeContent, setReadmeContent] = useState<string>('');
   const [generatingDigestRepo, setGeneratingDigestRepo] = useState<string | null>(null);
+  const [selectedDiscussionRepo, setSelectedDiscussionRepo] = useState<TrendingRepository | null>(null);
 
   const loadTrendingData = useCallback(async (targetDate?: string): Promise<void> => {
     try {
@@ -207,12 +209,7 @@ export default function ClientHomePage(): React.JSX.Element {
   };
 
   const handleStartDiscussion = (repo: TrendingRepository): void => {
-    if (aiConfig.provider === 'none') {
-      alert('AI 에이전트가 연동되지 않았습니다. 설정 탭에서 모델 또는 API Key를 설정해주세요.');
-      setActiveTab('settings');
-      return;
-    }
-    // Set active tab to discussion workspace for the selected repo
+    setSelectedDiscussionRepo(repo);
     setActiveTab('discussion');
   };
 
@@ -330,9 +327,13 @@ export default function ClientHomePage(): React.JSX.Element {
         )}
 
         {activeTab === 'discussion' && (
-          <div style={{ padding: '40px', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '6px', border: '1px solid #d0d7de', color: '#656d76' }}>
-            실시간 AI 토론 세션 기능은 곧 제공될 예정입니다. (Epic 4 #10)
-          </div>
+          <DiscussionWorkspace
+            initialRepo={selectedDiscussionRepo}
+            allRepos={trendingRepos}
+            aiGated={aiConfig.provider === 'none'}
+            onOpenReadme={handleOpenReadme}
+            onGoToSettings={(): void => setActiveTab('settings')}
+          />
         )}
 
         {activeTab === 'archives' && (
