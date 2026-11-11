@@ -73,7 +73,8 @@ flowchart TB
 
 본 프로젝트는 **중앙 서버(Supabase PostgreSQL)**와 **클라이언트(로컬 SQLite)**가 독립된 역할을 수행하면서 안전하게 동기화되는 **Dual-DB 분산 아키텍처**를 채택하고 있습니다.
 
-### 4.1. 중앙 서버 ERD (Supabase PostgreSQL)
+<details>
+<summary><h3>4.1. 중앙 서버 ERD (Supabase PostgreSQL)</h3></summary>
 
 중앙 서버는 모든 사용자의 계정 인증, 일일 스냅샷 공유 풀, 그리고 공개/비공개 토론 아카이브의 영구 보존소 역할을 담당합니다.
 
@@ -141,9 +142,10 @@ erDiagram
 > [!NOTE]
 > **Epic 6 계정 인증 고도화 (#49) 예정 컬럼**: 소셜 로그인(GitHub/Google/Kakao/Naver) 및 비밀번호 찾기 연동에 따라 `users` 테이블에 `email (text)`, `oauth_provider (text)`, `oauth_id (text)` 필드가 순차적으로 확장 적용될 예정입니다.
 
----
+</details>
 
-### 4.2. 클라이언트 로컬 ERD (SQLite)
+<details>
+<summary><h3>4.2. 클라이언트 로컬 ERD (SQLite)</h3></summary>
 
 클라이언트는 사용자의 개인 PC 환경에서 구동되며, 불필요한 네트워크 트래픽을 방지하고 빠른 UI 응답성을 위해 로컬 SQLite(`client.db`)를 운용합니다.
 
@@ -218,9 +220,10 @@ erDiagram
 | | `synced_with_server`| `INTEGER` | NOT NULL, Default `0` | 중앙 서버 동기화 성공 여부 (`0`: 미동기화, `1`: 동기화완료) |
 | | `created_at` | `TEXT` | NOT NULL | 아카이브 생성 일시 |
 
----
+</details>
 
-### 4.3. Dual-DB 동기화 매핑 및 데이터 흐름
+<details>
+<summary><h3>4.3. Dual-DB 동기화 매핑 및 데이터 흐름</h3></summary>
 
 ```mermaid
 flowchart LR
@@ -257,6 +260,8 @@ flowchart LR
 | **스냅샷 공유** | `local_snapshots` | `daily_snapshots` | **Tier 1 (로컬 SQLite)** 확인 → 없으면 **Tier 2 (중앙 서버)** 조회 후 로컬에 복제 캐시 저장 → 중앙 서버에도 없으면 **Tier 3 (클라이언트 1회 헤드리스 수집)** 후 중앙 서버와 로컬에 동시 등록합니다. |
 | **아카이브 영속화** | `local_archives` | `discussion_archives` | 토론 세션(`discussion_sessions`) 완료 시 로컬 아카이브를 생성하고, 중앙 서버로 전송하여 클라우드에 영구 백업(`synced_with_server=1`)합니다. |
 | **공개 피드 공유** | `local_archives.is_public` | `discussion_archives.is_public` | 사용자가 공개로 전환하면 중앙 서버의 `Public Discussion Feed`에 즉시 반영되어 다른 모든 개발자가 열람할 수 있습니다. |
+
+</details>
 
 ---
 
