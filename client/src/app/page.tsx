@@ -222,7 +222,9 @@ export default function ClientHomePage(): React.JSX.Element {
     );
   }
 
-  if (!authStatus?.valid) {
+  const isAuthenticated: boolean = Boolean(authStatus?.valid || (authStatus as { authenticated?: boolean })?.authenticated);
+
+  if (!isAuthenticated) {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#f6f8fa', padding: '40px 20px' }}>
         <AuthGate onAuthenticated={loadInitialData} />

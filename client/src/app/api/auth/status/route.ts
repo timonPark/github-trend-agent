@@ -6,12 +6,16 @@ import { toErrorMessage } from '@/lib/types/error';
 
 interface AuthStatusPayload {
   authenticated: boolean;
+  valid: boolean;
+  configured: boolean;
   server_url?: string;
   statusCode?: number;
   user?: {
     id: string;
     username: string;
   };
+  user_id?: string;
+  email?: string;
   error?: string;
 }
 
@@ -25,6 +29,8 @@ export async function GET(_request: Request): Promise<NextResponse<AuthStatusPay
     if (!serverAuthKey) {
       return NextResponse.json<AuthStatusPayload>({
         authenticated: false,
+        valid: false,
+        configured: false,
         server_url: serverUrl,
         error: '인증 키가 등록되지 않았습니다. 중앙 서버에서 발급받은 키를 등록해주세요.',
       });
@@ -36,6 +42,8 @@ export async function GET(_request: Request): Promise<NextResponse<AuthStatusPay
       return NextResponse.json<AuthStatusPayload>(
         {
           authenticated: false,
+          valid: false,
+          configured: true,
           server_url: serverUrl,
           statusCode: verification.statusCode || 401,
           error: verification.error || '인증 키가 유효하지 않거나 만료되었습니다.',
@@ -46,13 +54,19 @@ export async function GET(_request: Request): Promise<NextResponse<AuthStatusPay
 
     return NextResponse.json<AuthStatusPayload>({
       authenticated: true,
+      valid: true,
+      configured: true,
       server_url: serverUrl,
       user: verification.user,
+      user_id: verification.user?.id,
+      email: verification.user?.username,
     });
   } catch (err: unknown) {
     return NextResponse.json<AuthStatusPayload>(
       {
         authenticated: false,
+        valid: false,
+        configured: false,
         error: toErrorMessage(err),
       },
       { status: 500 }
