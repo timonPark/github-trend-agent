@@ -33,3 +33,9 @@
   - `server/test/terms.test.ts`: 약관 컨텐츠 구조, 약관 미동의 시 400 차단, 동의 시 `terms_agreed_at` DB 영속화 검증
   - `server/test/auth.test.ts`: 약관 필수화 반영 및 기존 인증 플로우 검증
 - **프로덕션 빌드**: Client 및 Server Next.js 빌드 성공 (`/terms`, `/privacy` 정적 페이지 포함)
+
+## 4. 완료 상태
+- **Pull Request**: [#61](https://github.com/timonPark/github-trend-agent/pull/61) (스쿼시 머지 완료)
+- **작업 브랜치**: `53-terms-of-service-and-privacy` (삭제 완료)
+- **이슈 상태**: [#53](https://github.com/timonPark/github-trend-agent/issues/53) Closed
+- **완료 일시**: 2026-11-11 17:03 (KST)
