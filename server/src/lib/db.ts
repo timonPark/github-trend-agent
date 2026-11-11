@@ -330,26 +330,28 @@ class SupabaseServerDatabase implements ServerDatabase {
   }
 }
 
-// Global DB Singleton
-let dbInstance: ServerDatabase | null = null;
+// Global DB Singleton across Next.js route chunks in Node process
+const globalForDb = globalThis as unknown as {
+  serverDbInstance?: ServerDatabase;
+};
 
 export function getServerDb(): ServerDatabase {
-  if (dbInstance) {
-    return dbInstance;
+  if (globalForDb.serverDbInstance) {
+    return globalForDb.serverDbInstance;
   }
 
   const url: string | undefined = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const key: string | undefined = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (url && key) {
-    dbInstance = new SupabaseServerDatabase(url, key);
+    globalForDb.serverDbInstance = new SupabaseServerDatabase(url, key);
   } else {
-    dbInstance = new MemoryServerDatabase();
+    globalForDb.serverDbInstance = new MemoryServerDatabase();
   }
-  return dbInstance;
+  return globalForDb.serverDbInstance;
 }
 
 export function resetServerDbForTest(): ServerDatabase {
-  dbInstance = new MemoryServerDatabase();
-  return dbInstance;
+  globalForDb.serverDbInstance = new MemoryServerDatabase();
+  return globalForDb.serverDbInstance;
 }
