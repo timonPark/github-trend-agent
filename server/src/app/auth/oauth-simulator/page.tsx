@@ -3,13 +3,29 @@
 import React, { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
+function getDefaultUsername(provider: string): string {
+  if (provider === 'github') return 'dev-octocat';
+  if (provider === 'google') return 'dev-google-user';
+  if (provider === 'kakao') return 'dev-kakao-user';
+  if (provider === 'naver') return 'dev-naver-user';
+  return 'dev-user';
+}
+
+function getProviderDisplayName(provider: string): string {
+  if (provider === 'github') return 'GitHub';
+  if (provider === 'google') return 'Google';
+  if (provider === 'kakao') return 'Kakao';
+  if (provider === 'naver') return 'Naver';
+  return provider.toUpperCase();
+}
+
 function SimulatorForm(): React.JSX.Element {
   const searchParams = useSearchParams();
   const provider: string = searchParams.get('provider') || 'github';
   const state: string = searchParams.get('state') || '';
   const redirectUri: string = searchParams.get('redirect_uri') || '/';
 
-  const defaultUser: string = provider === 'github' ? 'dev-octocat' : 'dev-google-user';
+  const defaultUser: string = getDefaultUsername(provider);
   const [customUsername, setCustomUsername] = useState<string>(defaultUser);
 
   const handleSimulate = (usernameToUse: string): void => {
@@ -20,6 +36,8 @@ function SimulatorForm(): React.JSX.Element {
     window.location.href = targetUrl.toString();
   };
 
+  const displayName: string = getProviderDisplayName(provider);
+
   return (
     <div style={{ maxWidth: '440px', margin: '40px auto', padding: '24px', border: '1px solid #d0d7de', borderRadius: '8px', backgroundColor: '#ffffff', boxShadow: '0 8px 24px rgba(140, 149, 159, 0.15)', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
@@ -27,7 +45,7 @@ function SimulatorForm(): React.JSX.Element {
         <h2 style={{ fontSize: '18px', fontWeight: 600, margin: 0 }}>Dev OAuth 시뮬레이터</h2>
       </div>
       <p style={{ fontSize: '13px', color: '#57606a', marginBottom: '16px', lineHeight: 1.5 }}>
-        외부 OAuth Client ID/Secret 설정 없이 로컬 개발 및 오프라인 환경에서 <strong>{provider.toUpperCase()}</strong> 소셜 로그인을 즉시 시뮬레이션합니다.
+        외부 OAuth Client ID/Secret 설정 없이 로컬 개발 및 오프라인 환경에서 <strong>{displayName}</strong> 소셜 로그인을 즉시 시뮬레이션합니다.
       </p>
 
       <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f6f8fa', borderRadius: '6px', fontSize: '12px' }}>
@@ -51,7 +69,7 @@ function SimulatorForm(): React.JSX.Element {
           onClick={(): void => handleSimulate(customUsername)}
           style={{ width: '100%', padding: '10px', fontSize: '13px', fontWeight: 600, backgroundColor: '#1f883d', color: '#ffffff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
         >
-          {provider === 'github' ? 'GitHub' : 'Google'} 계정으로 로그인 완료
+          {displayName} 계정으로 로그인 완료
         </button>
         <button
           type="button"
