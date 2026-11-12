@@ -7,8 +7,9 @@
   2. 개발 모드 및 오프라인 환경을 위한 Kakao / Naver Dev 시뮬레이터 지원.
   3. 중앙 서버 로그인(`/login`), 회원가입(`/register`), 그리고 `AuthModal`에 GitHub, Google, Kakao, Naver 4대 소셜 로그인 버튼을 포함한 통합 UI 구축.
   4. 엄격한 TDD(단위 테스트) 및 전 수트 통과, 프로덕션 빌드 성공.
-- **상태**: 구현 완료 (PR 대기)
+- **상태**: 완료 (Merged into main via PR #64)
 - **작업 시작**: 2026-11-12
+- **작업 완료**: 2026-11-12 17:18 KST
 
 ---
 
