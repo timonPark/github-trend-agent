@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OAuthProvider, getOAuthAuthorizeUrl } from '@/lib/oauth';
 
-const SUPPORTED_PROVIDERS: OAuthProvider[] = ['github', 'google'];
+const SUPPORTED_PROVIDERS: OAuthProvider[] = ['github', 'google', 'kakao', 'naver'];
 
 function isValidProvider(provider: string): provider is OAuthProvider {
   return SUPPORTED_PROVIDERS.includes(provider as OAuthProvider);
