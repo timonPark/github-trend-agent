@@ -119,5 +119,34 @@ export interface PublicSnapshotResponseDto {
   available_dates: string[];
 }
 
+export interface CheckUsernameResponseDto {
+  available: boolean;
+  message?: string;
+}
+
+export interface OAuthOnboardingTicket {
+  provider: 'github' | 'google' | 'kakao' | 'naver';
+  oauth_id: string;
+  suggested_username: string;
+  email: string | null;
+}
+
+export interface OAuthOnboardingRequestDto {
+  onboarding_token: string;
+  username: string;
+  email?: string;
+  terms_agreed: boolean;
+}
+
+export interface OAuthOnboardingResponseDto {
+  user: {
+    id: string;
+    username: string;
+    email?: string | null;
+    client_auth_key: string;
+  };
+  token: string;
+}
+
 
 

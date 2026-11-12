@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerDb, ServerDbAdapter } from '@/lib/db';
-import { createSessionToken } from '@/lib/auth';
-import { OAuthProvider, exchangeOAuthCodeForProfile, getOrCreateOAuthUser, OAuthProfile } from '@/lib/oauth';
+import { createSessionToken, createOAuthOnboardingToken } from '@/lib/auth';
+import { OAuthProvider, exchangeOAuthCodeForProfile, OAuthProfile } from '@/lib/oauth';
 import { User } from '@/lib/types';
 import { toErrorMessage } from '@/lib/types/error';
 
@@ -40,6 +40,28 @@ function buildErrorHtml(message: string): string {
   </script><p>오류가 발생했습니다: ${message}</p></body></html>`;
 }
 
+function handleExistingUserLogin(user: User): NextResponse {
+  const token: string = createSessionToken(user.id, user.username);
+  const res: NextResponse = new NextResponse(buildSuccessHtml(user, token), {
+    status: 200,
+    headers: { 'Content-Type': 'text/html' },
+  });
+  res.cookies.set('gta_session', token, { path: '/', httpOnly: true, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
+  return res;
+}
+
+function handleNewUserOnboarding(req: NextRequest, profile: OAuthProfile): NextResponse {
+  const onboardingToken: string = createOAuthOnboardingToken({
+    provider: profile.provider,
+    oauth_id: profile.id,
+    suggested_username: profile.username,
+    email: profile.email,
+  });
+  const onboardingUrl: URL = new URL('/oauth/onboarding', req.nextUrl.origin);
+  onboardingUrl.searchParams.set('token', onboardingToken);
+  return NextResponse.redirect(onboardingUrl, { status: 302 });
+}
+
 export async function GET(
   req: NextRequest,
   props: { params: Promise<{ provider: string }> }
@@ -54,12 +76,11 @@ export async function GET(
     const db: ServerDbAdapter = getServerDb();
     const redirectUri: string = resolveRedirectUri(req, provider as OAuthProvider);
     const profile: OAuthProfile = await exchangeOAuthCodeForProfile(provider as OAuthProvider, code, redirectUri);
-    const user: User = await getOrCreateOAuthUser(db, profile);
-    const token: string = createSessionToken(user.id, user.username);
-
-    const res: NextResponse = new NextResponse(buildSuccessHtml(user, token), { status: 200, headers: { 'Content-Type': 'text/html' } });
-    res.cookies.set('gta_session', token, { path: '/', httpOnly: true, sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 });
-    return res;
+    const existingUser: User | null = await db.findUserByOAuth(provider as OAuthProvider, profile.id);
+    if (existingUser) {
+      return handleExistingUserLogin(existingUser);
+    }
+    return handleNewUserOnboarding(req, profile);
   } catch (err: unknown) {
     return new NextResponse(buildErrorHtml(toErrorMessage(err)), { status: 500, headers: { 'Content-Type': 'text/html' } });
   }

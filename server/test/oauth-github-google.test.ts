@@ -107,6 +107,14 @@ describe('OAuth GitHub & Google Integration (#51)', (): void => {
     });
 
     it('handles GitHub callback and issues session cookie', async (): Promise<void> => {
+      const db: ServerDbAdapter = getServerDb();
+      await db.createOAuthUser({
+        username: 'gh_sam',
+        oauth_provider: 'github',
+        oauth_id: 'gh_sam',
+        email: 'sam@github.mock',
+      });
+
       const req: NextRequest = new NextRequest('http://localhost:4000/api/auth/oauth/github/callback?code=dev-mock-sam&state=abc');
       const res: Response = await oauthCallbackHandler(req, {
         params: Promise.resolve({ provider: 'github' }),
@@ -119,7 +127,6 @@ describe('OAuth GitHub & Google Integration (#51)', (): void => {
       const cookieHeader: string | null = res.headers.get('set-cookie');
       expect(cookieHeader).toContain('gta_session=');
 
-      const db: ServerDbAdapter = getServerDb();
       const user: User | null = await db.findUserByOAuth('github', 'gh_sam');
       expect(user).not.toBeNull();
       expect(user?.username).toBe('gh_sam');
@@ -127,13 +134,20 @@ describe('OAuth GitHub & Google Integration (#51)', (): void => {
     });
 
     it('handles Google callback and verifies session token validity', async (): Promise<void> => {
+      const db: ServerDbAdapter = getServerDb();
+      await db.createOAuthUser({
+        username: 'google_gtest',
+        oauth_provider: 'google',
+        oauth_id: 'google_gtest',
+        email: 'gtest@google.mock',
+      });
+
       const req: NextRequest = new NextRequest('http://localhost:4000/api/auth/oauth/google/callback?code=dev-mock-gtest&state=abc');
       const res: Response = await oauthCallbackHandler(req, {
         params: Promise.resolve({ provider: 'google' }),
       });
       expect(res.status).toBe(200);
 
-      const db: ServerDbAdapter = getServerDb();
       const user: User | null = await db.findUserByOAuth('google', 'google_gtest');
       expect(user).not.toBeNull();
 
