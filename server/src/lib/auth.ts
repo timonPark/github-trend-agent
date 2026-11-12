@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { getServerDb, ServerDbAdapter } from './db';
 import { User } from './types';
+import { OAuthOnboardingTicket } from './types/api';
 
 export function hashPassword(password: string): string {
   const salt: string = crypto.randomBytes(16).toString('hex');
@@ -87,6 +88,41 @@ export function verifyPasswordResetToken(token: string): { userId: string; email
     if (payload.type !== 'password_reset') return null;
     if (payload.exp && Date.now() > payload.exp) return null;
     return { userId: payload.userId, email: payload.email };
+  } catch {
+    return null;
+  }
+}
+
+export function createOAuthOnboardingToken(ticket: OAuthOnboardingTicket): string {
+  const payload: string = JSON.stringify({
+    ...ticket,
+    type: 'oauth_onboarding',
+    exp: Date.now() + 1000 * 60 * 30,
+  });
+  const b64Payload: string = Buffer.from(payload).toString('base64url');
+  const signature: string = crypto.createHmac('sha256', SESSION_SECRET).update(b64Payload).digest('base64url');
+  return `${b64Payload}.${signature}`;
+}
+
+export function verifyOAuthOnboardingToken(token: string): OAuthOnboardingTicket | null {
+  try {
+    const parts: string[] = token.split('.');
+    const b64Payload: string = parts[0];
+    const signature: string = parts[1];
+    if (!b64Payload || !signature) return null;
+    const expectedSig: string = crypto.createHmac('sha256', SESSION_SECRET).update(b64Payload).digest('base64url');
+    if (signature !== expectedSig) return null;
+    const payload: OAuthOnboardingTicket & { type?: string; exp?: number } = JSON.parse(
+      Buffer.from(b64Payload, 'base64url').toString('utf-8')
+    ) as OAuthOnboardingTicket & { type?: string; exp?: number };
+    if (payload.type !== 'oauth_onboarding') return null;
+    if (payload.exp && Date.now() > payload.exp) return null;
+    return {
+      provider: payload.provider,
+      oauth_id: payload.oauth_id,
+      suggested_username: payload.suggested_username,
+      email: payload.email,
+    };
   } catch {
     return null;
   }

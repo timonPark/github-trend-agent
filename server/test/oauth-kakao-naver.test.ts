@@ -211,6 +211,14 @@ describe('OAuth Kakao & Naver Integration (#52)', (): void => {
     });
 
     it('completes full callback flow and issues gta_session for kakao', async (): Promise<void> => {
+      const db: ServerDbAdapter = getServerDb();
+      await db.createOAuthUser({
+        username: 'kakao_kakaotester',
+        oauth_provider: 'kakao',
+        oauth_id: 'kakao_kakaotester',
+        email: 'kakaotester@kakao.mock',
+      });
+
       const req: NextRequest = new NextRequest('http://localhost:4000/api/auth/oauth/kakao/callback?code=dev-mock-kakaotester');
       const res: Response = await oauthCallbackHandler(req, {
         params: Promise.resolve({ provider: 'kakao' }),
@@ -231,6 +239,14 @@ describe('OAuth Kakao & Naver Integration (#52)', (): void => {
     });
 
     it('completes full callback flow and issues gta_session for naver', async (): Promise<void> => {
+      const db: ServerDbAdapter = getServerDb();
+      await db.createOAuthUser({
+        username: 'naver_navertester',
+        oauth_provider: 'naver',
+        oauth_id: 'naver_navertester',
+        email: 'navertester@naver.mock',
+      });
+
       const req: NextRequest = new NextRequest('http://localhost:4000/api/auth/oauth/naver/callback?code=dev-mock-navertester');
       const res: Response = await oauthCallbackHandler(req, {
         params: Promise.resolve({ provider: 'naver' }),
